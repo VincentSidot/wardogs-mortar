@@ -70,31 +70,42 @@ def parse_coord(text, y_first=False):
     return (b, a) if y_first else (a, b)
 
 
-def aim_after(target, impacts):
-    """Point de visee apres une suite d'impacts observes.
+def aim_after(target, shots):
+    """Point de visee apres une suite d'impacts observes (reglage amorti).
 
-    Chaque impact deplace la visee de (cible - impact), et les corrections se
-    cumulent : le deuxieme reglage part de la visee deja corrigee, il ne
-    remplace pas le premier. Les impacts passes ici doivent tous provenir de
-    la meme piece -- deux pieces n'ont aucune raison d'avoir la meme derive.
+    Chaque tir est (impact, point_vise) : le biais de la piece est estime par
+    la moyenne des ecarts impact - point vise, et la visee vaut cible - biais.
+    Un seul impact corrige a fond ; plusieurs se lissent au lieu de faire
+    osciller la visee au rythme de la dispersion. Les tirs passes ici doivent
+    tous provenir de la meme piece.
     """
     tx, ty = target
-    x, y = tx, ty
-    for ix, iy in impacts:
-        x += tx - ix
-        y += ty - iy
-    return (x, y)
+    if not shots:
+        return (tx, ty)
+    bx = sum(ix - ax for (ix, iy), (ax, ay) in shots) / len(shots)
+    by = sum(iy - ay for (ix, iy), (ax, ay) in shots) / len(shots)
+    return (tx - bx, ty - by)
+
+
+def log_shots(target, impacts):
+    """Rejoue une sequence d'impacts comme le ferait la page : le point vise
+    de chaque tir est celui en vigueur au moment ou il a ete enregistre."""
+    shots = []
+    for impact in impacts:
+        shots.append((tuple(impact), aim_after(target, shots)))
+    return shots
 
 
 def adjust(gun, target, impacts, meters_per_point=METERS_PER_POINT):
-    """Solution corrigee d'apres les impacts deja observes."""
+    """Solution corrigee d'apres les impacts observes, dans l'ordre."""
     if impacts and not isinstance(impacts[0], (tuple, list)):
         impacts = [impacts]          # tolere un impact unique
-    aim = aim_after(target, impacts)
+    shots = log_shots(target, impacts)
+    aim = aim_after(target, shots)
     last = impacts[-1] if impacts else target
 
     return {
-        "offset": solve(last, target, meters_per_point),   # du dernier impact vers la cible
+        "offset": solve(last, target, meters_per_point),
         "aim_point": {"x": aim[0], "y": aim[1]},
         "corrected": solve(gun, aim, meters_per_point),
         "original": solve(gun, target, meters_per_point),
@@ -114,10 +125,12 @@ def project(gun, distance_m, azimuth_deg, meters_per_point=METERS_PER_POINT):
     }
 
 
-# Courbe de correction balistique, mesuree sur SPH-2 le 2026-09-05.
-# Deux series, 12 coups depuis une position fixe : la portee affichee sur la
-# piece tombe systematiquement court, d'un deficit qui s'accelere avec la
-# distance. Chaque entree est (portee au sol visee, facteur a appliquer).
+# Offset terrain mesure sur SPH-2 le 2026-09-05 : 12 coups depuis x96/y109
+# vers le sud, portee systematiquement courte, deficit croissant avec la
+# distance. Les tables du jeu supposent gun et cible a la meme altitude ; ce
+# deficit est tres probablement la pente, pas le canon. La courbe n'est donc
+# valable que pour cette position, et la page la laisse desactivee par defaut.
+# Chaque entree est (portee au sol visee, facteur a appliquer).
 RANGE_CALIBRATION = [
     (800, 1.0013),
     (1400, 1.0123),
@@ -125,8 +138,30 @@ RANGE_CALIBRATION = [
     (2600, 1.0388),
 ]
 
-# Au-dela, la piece sature : afficher plus n'allonge plus le tir.
-EFFECTIVE_MAX_RANGE_M = 2500
+# Enveloppe du SPH-2 d'apres les mesures communautaires (wardogshub) :
+# arc haut seul sous 1181 m, bascule de l'arc vers 2625 m.
+SPH2_MIN_RANGE_M = 780
+SPH2_LOW_ARC_FROM_M = 1181
+SPH2_MAX_RANGE_M = 2629
+SPH2_NEAR_MAX_FROM_M = 2550
+DISPERSION_MOA = 10
+
+
+def dispersion_m(ground_m):
+    """Rayon de dispersion de la piece a cette portee (10 MOA)."""
+    return ground_m * (DISPERSION_MOA / 60) * math.pi / 180
+
+
+def range_status(ground_m):
+    if ground_m < SPH2_MIN_RANGE_M:
+        return "tooClose"
+    if ground_m > SPH2_MAX_RANGE_M:
+        return "outOfRange"
+    if ground_m > SPH2_NEAR_MAX_FROM_M:
+        return "nearMax"
+    if ground_m < SPH2_LOW_ARC_FROM_M:
+        return "highArcOnly"
+    return "ok"
 
 
 def dial_range(ground_m, table=RANGE_CALIBRATION):
@@ -153,14 +188,14 @@ DIAL_AZIMUTH_STEP_DEG = 1
 DIAL_RANGE_STEP_M = 25
 
 
-def dialable(ground_m, azimuth_deg):
+def dialable(ground_m, azimuth_deg, use_curve=False):
     """Traduit une solution exacte en valeurs reellement composables.
 
     Renvoie ce qu'il faut afficher sur la piece, et le cout en metres de
     chaque arrondi : au-dela de 2 km, l'arrondi de l'azimut au degre pese
-    plus lourd que la correction balistique.
+    plus lourd que l'offset terrain, lui-meme optionnel.
     """
-    exact_range = dial_range(ground_m)
+    exact_range = dial_range(ground_m) if use_curve else ground_m
     # Arrondi au demi superieur, comme Math.round en JavaScript : les deux
     # implementations doivent donner le meme cran, y compris sur les .5 exacts
     # que l'arrondi bancaire de Python trancherait dans l'autre sens.

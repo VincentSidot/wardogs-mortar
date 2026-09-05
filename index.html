@@ -115,6 +115,8 @@
   .sol .warn{grid-column:1/-1;color:var(--hot);font-size:11.5px;border-top:1px solid var(--line);
              padding-top:8px}
   .sol .corr{grid-column:1/-1;color:var(--ok);font-size:11px;font-family:var(--mono)}
+  .sol .note{grid-column:1/-1;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);
+             padding-top:8px}
   @media(max-width:560px){.sol{grid-template-columns:1fr 1fr}.sol .who{grid-column:1/-1}}
 
   .list{display:flex;flex-direction:column;gap:6px}
@@ -223,6 +225,7 @@
       </table>
       <div class="empty" id="noShots" data-i18n="noShots">Aucun impact enregistré.</div>
       <p class="hint" data-i18n-html="shotsHint"></p>
+      <p class="hint" data-i18n-html="noiseHint"></p>
     </section>
 
     <section class="panel">
@@ -276,6 +279,8 @@
                <input id="scale" class="small" inputmode="decimal" value="100"></div>
           <div><label for="order" data-i18n="inputOrder">Ordre de saisie</label>
                <button id="order" class="ghost small" style="padding:9px 11px">X puis Y</button></div>
+          <div><label for="curve" data-i18n="curveLabel">Offset terrain</label>
+               <button id="curve" class="ghost small" style="padding:9px 11px">OFF</button></div>
         </div>
         <p class="hint" data-i18n-html="calibHint"></p>
       </details>
@@ -301,9 +306,11 @@ const I18N = {
     impactX:'Impact X', impactY:'Impact Y', firedBy:'Tirée par', logShot:'Enregistrer',
     thNo:'#', thBattery:'Batterie', thImpact:'Impact', thMiss:'Écart',
     noShots:'Aucun impact enregistré.',
-    shotsHint:'Chaque impact déplace le point de visée de la batterie qui a tiré, ' +
-      'et les corrections se cumulent. Elles sont propres à chaque batterie : régler ' +
-      'l’une ne déplace pas les autres.',
+    shotsHint:'Le point de visée est corrigé de la <em>moyenne</em> des écarts observés pour ' +
+      'la batterie qui a tiré : un impact isolé corrige à fond, plusieurs se lissent entre eux ' +
+      'au lieu de faire osciller la visée. Chaque batterie a sa propre correction.',
+    corrLine: (n, x, y) => 'Visée corrigée sur ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ' : ' + x + ' / ' + y,
     reverseSection:'Mode inverse — vérifier un tir', fromBattery:'Depuis',
     distanceM:'Distance (m)', azimuthDeg:'Azimut (°)', whereBtn:'Où ça tombe ?',
     reverseHint:'Entre ce que tu as réellement affiché sur la pièce : l’app dit quelle ' +
@@ -314,9 +321,21 @@ const I18N = {
     mapSection:'Vue tactique', compassSection:'Rose des vents',
     settingsSection:'Réglages', metresPerPoint:'Mètres / point', inputOrder:'Ordre de saisie',
     orderXY:'X puis Y', orderYX:'Y puis X',
-    calibHint:'Portée corrigée d’après 12 tirs mesurés : les obus tombent court, ' +
-      'd’autant plus qu’on tire loin (nul à 800 m, −1,5 % à 2 km, −3,7 % à 2,6 km). ' +
+    calibHint:'<strong>Offset terrain</strong> : courbe mesurée le 05/09 depuis x96/y109 en tirant ' +
+      'vers le sud (−1,5 % à 2 km, −3,7 % à 2,6 km). Les tables du jeu supposent gun et cible ' +
+      'à la même altitude : tirer en montée tombe court. Cette courbe n’est valable que pour ' +
+      'cette position — ailleurs, laisse-la sur OFF et règle avec le premier coup. ' +
       'Les valeurs sont arrondies au réglable : azimut au degré, portée par crans de 25 m.',
+    curveLabel:'Offset terrain', curveOn:'ON · 05/09', curveOff:'OFF',
+    tooClose: min => 'Trop près : portée mini ' + min + ' m',
+    highArcOnly: lim => 'Arc haut obligatoire (arc bas dès ' + lim + ' m)',
+    outOfRange: max => 'Hors de portée (max ' + max + ' m)',
+    nearMax: max => 'Proche de la portée max (' + max + ' m) : la table s’aplatit, le coup peut tomber court',
+    dispersion: m => '±' + m + ' m',
+    inNoise:'bruit',
+    noiseHint: 'La pièce disperse de ±10 MOA (±3 m à 1 km, ±8 m à 2,6 km) et le réglage se fait ' +
+      'par pas de 25 m et 1°. Un écart marqué <em>bruit</em> est en dessous de ce seuil : il ne ' +
+      'dit rien sur la visée.',
     pasteHint: ex => 'Colle <code>x90.37, y44.35</code> dans l’un ou l’autre champ : les ' +
       'étiquettes x/y sont reconnues et l’ordre n’a pas d’importance. Sans étiquette, ' +
       '<code>' + ex + '</code> suit l’ordre affiché.',
@@ -326,10 +345,6 @@ const I18N = {
     onGround: m => m + ' m au sol',
     belowStep:'correction sous le pas',
     ballistic: m => 'correction ' + m + ' m',
-    saturates: max => 'Au-delà de la portée utile (~' + max + ' m) : la pièce sature, ' +
-      'le coup tombera court quoi que tu affiches.',
-    corrected: (n, x, y) => 'Corrigé sur ' + n + (n > 1 ? ' impacts' : ' impact') +
-      ' · visée ' + x + ' / ' + y,
     perDegree: m => '1° = ' + m + ' m',
     aimNoCorr:'Aucune correction', aimCorr: n => n + (n > 1 ? ' corrections' : ' correction'),
     errBatteryFirst:'Ajoute d’abord une batterie.',
@@ -356,8 +371,11 @@ const I18N = {
     impactX:'Impact X', impactY:'Impact Y', firedBy:'Fired by', logShot:'Log',
     thNo:'#', thBattery:'Battery', thImpact:'Impact', thMiss:'Miss',
     noShots:'No impacts logged.',
-    shotsHint:'Each impact shifts the aim point of the battery that fired, and corrections ' +
-      'accumulate. They are per battery: adjusting one does not move the others.',
+    shotsHint:'The aim point is corrected by the <em>average</em> of the observed misses for ' +
+      'the battery that fired: a single impact corrects fully, several smooth each other out ' +
+      'instead of making the aim oscillate. Each battery has its own correction.',
+    corrLine: (n, x, y) => 'Aim corrected on ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ': ' + x + ' / ' + y,
     reverseSection:'Reverse mode — check a shot', fromBattery:'From',
     distanceM:'Range (m)', azimuthDeg:'Azimuth (°)', whereBtn:'Where does it land?',
     reverseHint:'Enter what you actually dialled on the gun: the app tells you which ' +
@@ -368,9 +386,21 @@ const I18N = {
     mapSection:'Tactical view', compassSection:'Compass rose',
     settingsSection:'Settings', metresPerPoint:'Metres / point', inputOrder:'Input order',
     orderXY:'X then Y', orderYX:'Y then X',
-    calibHint:'Range corrected from 12 measured shots: rounds fall short, increasingly so ' +
-      'with distance (nil at 800 m, −1.5 % at 2 km, −3.7 % at 2.6 km). Values are rounded ' +
-      'to what is dialable: azimuth to the degree, range in 25 m steps.',
+    calibHint:'<strong>Terrain offset</strong>: curve measured on 05/09 from x96/y109 firing ' +
+      'south (−1.5 % at 2 km, −3.7 % at 2.6 km). The game’s tables assume gun and target at the ' +
+      'same height: firing uphill falls short. This curve is only valid for that position — ' +
+      'anywhere else leave it OFF and adjust from the first round. Values are rounded to what ' +
+      'is dialable: azimuth to the degree, range in 25 m steps.',
+    curveLabel:'Terrain offset', curveOn:'ON · 05/09', curveOff:'OFF',
+    tooClose: min => 'Too close: minimum range ' + min + ' m',
+    highArcOnly: lim => 'High arc only (low arc from ' + lim + ' m)',
+    outOfRange: max => 'Out of range (max ' + max + ' m)',
+    nearMax: max => 'Near maximum range (' + max + ' m): the table flattens, the round may fall short',
+    dispersion: m => '±' + m + ' m',
+    inNoise:'noise',
+    noiseHint: 'The gun disperses ±10 MOA (±3 m at 1 km, ±8 m at 2.6 km) and dials in 25 m and ' +
+      '1° steps. A miss tagged <em>noise</em> is below that threshold: it says nothing about ' +
+      'the aim.',
     pasteHint: ex => 'Paste <code>x90.37, y44.35</code> into either field: the x/y labels are ' +
       'recognised and the order does not matter. Without labels, <code>' + ex +
       '</code> follows the displayed order.',
@@ -380,10 +410,6 @@ const I18N = {
     onGround: m => m + ' m on the ground',
     belowStep:'correction below dial step',
     ballistic: m => 'correction ' + m + ' m',
-    saturates: max => 'Beyond useful range (~' + max + ' m): the gun saturates, the round ' +
-      'will fall short whatever you dial.',
-    corrected: (n, x, y) => 'Corrected on ' + n + (n > 1 ? ' impacts' : ' impact') +
-      ' · aim ' + x + ' / ' + y,
     perDegree: m => '1° = ' + m + ' m',
     aimNoCorr:'No correction', aimCorr: n => n + (n > 1 ? ' corrections' : ' correction'),
     errBatteryFirst:'Add a battery first.',
@@ -433,11 +459,26 @@ function migrate(raw){
 }
 
 const state = Object.assign({
-  lang: defaultLang(), scale: 100, yFirst: false,
+  lang: defaultLang(), scale: 100, yFirst: false, terrainCurve: false,
   batteries: [], missions: [], activeBatteryId: null, activeMissionId: null
 }, migrate(store.load()));
 
+// Les impacts enregistres avant la correction amortie n'ont pas de point vise.
+// On le reconstitue avec l'ancienne regle cumulative, pour ne rien perdre.
+state.missions.forEach(m => {
+  const seen = {};
+  m.shots.forEach(s => {
+    if (s.aimX !== undefined && s.aimY !== undefined) return;
+    const acc = seen[s.batteryId] || (seen[s.batteryId] = { x: m.x, y: m.y });
+    s.aimX = acc.x;
+    s.aimY = acc.y;
+    acc.x += m.x - s.x;
+    acc.y += m.y - s.y;
+  });
+});
 function persist(){ store.save(state); }
+persist();
+
 
 /* ========================================================== moteur ==== */
 function cardinalIndex(az){ return Math.round(((az % 360) + 360) % 360 / 22.5) % 16; }
@@ -458,9 +499,25 @@ function project(from, distance_m, azimuth_deg, mppv){
   return { x: from.x + r * Math.sin(a), y: from.y + r * Math.cos(a), distance_pts: r };
 }
 
-// Correction balistique mesuree sur 12 coups (voir artillery.py / calibrate.py).
+// Offset terrain mesure sur 12 coups le 05/09 depuis x96/y109 vers le sud
+// (voir calibrate.py). Les tables du jeu supposent gun et cible a la meme
+// altitude ; ce qu'on a mesure est tres probablement la pente, pas le canon.
+// Donc : optionnel, et desactive par defaut.
 const RANGE_CALIBRATION = [[800, 1.0013], [1400, 1.0123], [2000, 1.0155], [2600, 1.0388]];
-const EFFECTIVE_MAX_RANGE_M = 2500;
+
+// Enveloppe du SPH-2 d'apres les mesures communautaires (wardogshub) :
+// arc haut seul sous 1181 m, bascule de l'arc vers 2625 m.
+const SPH2 = { minRange: 780, lowArcFrom: 1181, maxRange: 2629, nearMaxFrom: 2550 };
+const DISPERSION_MOA = 10;
+const dispersionM = groundM => groundM * (DISPERSION_MOA / 60) * Math.PI / 180;
+
+function rangeStatus(groundM){
+  if (groundM < SPH2.minRange) return 'tooClose';
+  if (groundM > SPH2.maxRange) return 'outOfRange';
+  if (groundM > SPH2.nearMaxFrom) return 'nearMax';
+  if (groundM < SPH2.lowArcFrom) return 'highArcOnly';
+  return 'ok';
+}
 
 function dialRange(groundM){
   const t = RANGE_CALIBRATION;
@@ -479,8 +536,8 @@ function dialRange(groundM){
 const DIAL_AZIMUTH_STEP_DEG = 1;
 const DIAL_RANGE_STEP_M = 25;
 
-function dialable(groundM, azimuthDeg){
-  const exact = dialRange(groundM);
+function dialable(groundM, azimuthDeg, useCurve){
+  const exact = useCurve ? dialRange(groundM) : groundM;
   return {
     range_dialed: Math.round(exact / DIAL_RANGE_STEP_M) * DIAL_RANGE_STEP_M,
     range_exact: exact,
@@ -497,18 +554,21 @@ const mission = () => state.missions.find(m => m.id === state.activeMissionId) |
 const missionReady = m => !!m && m.x !== null && m.y !== null &&
                           Number.isFinite(m.x) && Number.isFinite(m.y);
 
-// Reglage cumulatif : chaque impact deplace la visee de (cible - impact).
-// Le compte est propre a chaque batterie, leurs erreurs n'ayant aucune raison
-// d'etre les memes.
+// Reglage amorti : le biais de la piece est estime par la moyenne des ecarts
+// (impact - point vise) de ses tirs, et la visee vaut cible - biais. Un seul
+// impact corrige a fond ; plusieurs se lissent au lieu de faire osciller la
+// visee au rythme de la dispersion. Le compte est propre a chaque batterie.
 function aimFor(m, batteryId){
-  let x = m.x, y = m.y;
+  let bx = 0, by = 0, n = 0;
   for (let i = 0; i < m.shots.length; i++) {
     const s = m.shots[i];
     if (s.batteryId !== batteryId) continue;
-    x += m.x - s.x;
-    y += m.y - s.y;
+    bx += s.x - s.aimX;
+    by += s.y - s.aimY;
+    n++;
   }
-  return { x: x, y: y };
+  if (!n) return { x: m.x, y: m.y };
+  return { x: m.x - bx / n, y: m.y - by / n };
 }
 const shotsOf = (m, bid) => m.shots.filter(s => s.batteryId === bid);
 
@@ -677,7 +737,13 @@ function renderSolutions(){
     const aim = aimFor(m, b.id);
     const n = shotsOf(m, b.id).length;
     const s = solve(b, aim, scale);
-    const d = dialable(s.distance_m, s.azimuth_deg);
+    const d = dialable(s.distance_m, s.azimuth_deg, state.terrainCurve);
+    const status = rangeStatus(s.distance_m);
+    const statusLine =
+      status === 'tooClose'    ? '<div class="warn">' + T().tooClose(fmt(SPH2.minRange)) + '</div>' :
+      status === 'outOfRange'  ? '<div class="warn">' + T().outOfRange(fmt(SPH2.maxRange)) + '</div>' :
+      status === 'nearMax'     ? '<div class="warn">' + T().nearMax(fmt(SPH2.maxRange)) + '</div>' :
+      status === 'highArcOnly' ? '<div class="note">' + T().highArcOnly(fmt(SPH2.lowArcFrom)) + '</div>' : '';
 
     const el = document.createElement('div');
     el.className = 'sol' + (b.id === state.activeBatteryId ? ' on' : '');
@@ -690,10 +756,11 @@ function renderSolutions(){
       '<div class="fig">' +
         '<div class="k">' + T().rangeToDial + '</div>' +
         '<div class="v">' + fmt(d.range_dialed) + '<span class="u"> m</span></div>' +
-        '<div class="s">' + T().onGround(fmt(s.distance_m)) + ' · ' +
-          (d.correction_below_step ? T().belowStep
-            : T().ballistic((d.range_exact >= s.distance_m ? '+' : '') +
-                            fmt(d.range_exact - s.distance_m))) + '</div>' +
+        '<div class="s">' + T().onGround(fmt(s.distance_m)) + ' · ' + T().dispersion(fmt(dispersionM(s.distance_m))) +
+          (state.terrainCurve && !d.correction_below_step
+            ? ' · ' + T().ballistic((d.range_exact >= s.distance_m ? '+' : '') +
+                                    fmt(d.range_exact - s.distance_m))
+            : '') + '</div>' +
       '</div>' +
       '<div class="fig">' +
         '<div class="k">' + T().azimuthToDial + '</div>' +
@@ -701,9 +768,8 @@ function renderSolutions(){
         '<div class="s">' + T().cardinals[s.cardinal_idx] + ' · ' +
           T().perDegree(fmt(d.azimuth_step_m * 2)) + '</div>' +
       '</div>' +
-      (n ? '<div class="corr">' + T().corrected(n, fmt(aim.x, 2), fmt(aim.y, 2)) + '</div>' : '') +
-      (s.distance_m > EFFECTIVE_MAX_RANGE_M
-        ? '<div class="warn">' + T().saturates(fmt(EFFECTIVE_MAX_RANGE_M)) + '</div>' : '');
+      (n ? '<div class="corr">' + T().corrLine(n, fmt(aim.x, 2), fmt(aim.y, 2)) + '</div>' : '') +
+      statusLine;
 
     el.addEventListener('click', () => {
       state.activeBatteryId = b.id;
@@ -726,7 +792,10 @@ function logShot(){
   if (!bid) { $('shotErr').textContent = T().errBatteryFirst; return; }
   if (x === null || y === null) { $('shotErr').textContent = T().errCoords; return; }
   $('shotErr').textContent = '';
-  m.shots.push({ id: uid('s'), batteryId: bid, x: x, y: y });
+  // On memorise le point vise au moment du tir : c'est lui, pas la cible,
+  // qui sert de reference pour mesurer l'ecart de la piece.
+  const aim = aimFor(m, bid);
+  m.shots.push({ id: uid('s'), batteryId: bid, x: x, y: y, aimX: aim.x, aimY: aim.y });
   $('ix').value = ''; $('iy').value = '';
   persist(); render();
 }
@@ -741,16 +810,22 @@ function renderShots(){
 
   const scale = mpp();
   m.shots.forEach((s, i) => {
-    const off = solve({ x: s.x, y: s.y }, { x: m.x, y: m.y }, scale);
+    // Ecart mesure par rapport au point vise pour ce tir, dans la convention
+    // de l'artilleur : direction ou l'obus est tombe.
+    const off = solve({ x: s.aimX, y: s.aimY }, { x: s.x, y: s.y }, scale);
     const b = battery(s.batteryId);
     const far = off.distance_m > 1500;
+    const range = solve(b || { x: s.aimX, y: s.aimY }, { x: s.aimX, y: s.aimY }, scale).distance_m;
+    const noise = dispersionM(range) + DIAL_RANGE_STEP_M / 2 +
+                  (DIAL_AZIMUTH_STEP_DEG / 2) * Math.PI / 180 * range;
+    const inNoise = off.distance_m <= noise;
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + (i + 1) + '</td>' +
       '<td>' + (b ? esc(b.name) : '—') + '</td>' +
       '<td>' + fmt(s.x, 2) + ' / ' + fmt(s.y, 2) + '</td>' +
-      '<td><span class="chip' + (far ? ' hot' : '') + '">' + fmt(off.distance_m) + ' m ' +
-        T().cardinals[off.cardinal_idx] + '</span></td>' +
+      '<td><span class="chip' + (far ? ' hot' : inNoise ? '' : ' ok') + '">' + fmt(off.distance_m) + ' m ' +
+        T().cardinals[off.cardinal_idx] + (inNoise ? ' · ' + T().inNoise : '') + '</span></td>' +
       '<td style="text-align:right"><button class="icon-btn" title="' + T().deleteTitle + '">×</button></td>';
     tr.querySelector('.icon-btn').addEventListener('click', () => {
       m.shots = m.shots.filter(v => v.id !== s.id);
@@ -761,7 +836,7 @@ function renderShots(){
 
   const last = m.shots[m.shots.length - 1];
   if (last) {
-    const off = solve({ x: last.x, y: last.y }, { x: m.x, y: m.y }, scale);
+    const off = solve({ x: last.aimX, y: last.aimY }, { x: last.x, y: last.y }, scale);
     $('shotErr').textContent = off.distance_m > 1500 ? T().farWarning : '';
   }
 }
@@ -911,6 +986,9 @@ function runProject(){
 
 /* ========================================================== rendu ===== */
 function render(){
+  $('curve').textContent = state.terrainCurve ? T().curveOn : T().curveOff;
+  $('curve').style.color = state.terrainCurve ? 'var(--accent)' : '';
+  $('curve').style.borderColor = state.terrainCurve ? 'var(--accent-dim)' : '';
   renderBatteries();
   renderMissionTabs();
 
@@ -984,6 +1062,10 @@ $('scale').addEventListener('input', () => { state.scale = $('scale').value; per
 $('order').addEventListener('click', () => {
   state.yFirst = !state.yFirst;
   persist(); applyOrder();
+});
+$('curve').addEventListener('click', () => {
+  state.terrainCurve = !state.terrainCurve;
+  persist(); render();
 });
 $('lang').addEventListener('click', () => {
   state.lang = state.lang === 'en' ? 'fr' : 'en';
