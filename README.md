@@ -1,6 +1,6 @@
 # Wardogs Mortar
 
-v2.2.0 · 
+v2.3.0 · 
 Artillery fire-control calculator for War Dogs.
 **<https://vincentsidot.github.io/wardogs-mortar/>**
 
@@ -24,9 +24,13 @@ to dial. Single static page, no server, works offline. English / French.
   dialled something other than the displayed solution, enter it in the
   "dialled range / azimuth" fields so the model measures the miss against the
   right reference. When the gun moves, add a new battery.
-- **Dial dithering.** When the exact range falls between two 25 m steps the
-  solution names both, so alternating them on fire-for-effect centres the
-  mean impact on the target instead of carrying a half-step bias.
+- **MIL readout.** The elevation in mils is shown next to the range, with the
+  two 10-mil ladder marks it falls between and how far towards the upper one —
+  the community table matches the in-game sight ladder to the metre, so you
+  can set either the RNG or the MIL scale, whichever is easier to align.
+- **Dial dithering.** When the exact range or azimuth falls between two steps
+  (25 m, 1°) the solution names both, so alternating them on fire-for-effect
+  centres the mean impact on the target instead of carrying a half-step bias.
 - **Reverse mode.** Enter what you actually dialled and see which coordinate
   that shot aims at. This is how you catch a stale battery position — on a
   self-propelled gun it changes the moment you drive.

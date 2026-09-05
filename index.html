@@ -100,7 +100,7 @@
 
   .sol-grid{display:grid;gap:10px}
   .sol{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);
-       padding:12px 14px;display:grid;grid-template-columns:1fr auto auto;gap:14px;
+       padding:12px 14px;display:grid;grid-template-columns:1fr auto auto auto;gap:14px;
        align-items:center;cursor:pointer}
   .sol.on{border-color:var(--accent-dim);background:var(--panel-3)}
   .sol .who{min-width:0}
@@ -118,7 +118,8 @@
   .sol .note{grid-column:1/-1;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);
              padding-top:8px}
   .sol .info{grid-column:1/-1;color:var(--dim);font-size:11px;font-family:var(--mono)}
-  @media(max-width:560px){.sol{grid-template-columns:1fr 1fr}.sol .who{grid-column:1/-1}}
+  @media(max-width:640px){.sol{grid-template-columns:1fr 1fr 1fr}.sol .who{grid-column:1/-1}}
+  .sol .fig .v.mid{color:var(--ink)}
 
   .list{display:flex;flex-direction:column;gap:6px}
   .item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:5px;
@@ -305,7 +306,7 @@ const $ = id => document.getElementById(id);
 
 // Version affichee dans l'en-tete. A incrementer a chaque livraison notable :
 // majeur = modele de donnees, mineur = fonctionnalite, correctif = le reste.
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 
 /* ============================================================ i18n ==== */
 const I18N = {
@@ -379,7 +380,10 @@ const I18N = {
       '<code>' + ex + '</code> suit l’ordre affiché.',
     cardinals:['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'],
     compassPoints:['N','E','S','O'],
-    rangeToDial:'Portée', azimuthToDial:'Azimut',
+    rangeToDial:'Portée', azimuthToDial:'Azimut', milToDial:'MIL',
+    milBracket: (lo, hi, pct) => 'entre ' + lo + ' et ' + hi + ' · ' + pct + ' % vers ' + hi,
+    milExact:'pile sur l’échelle', noMil:'hors table',
+    azDither: v => 'alterner avec ' + v + '°',
     onGround: m => m + ' m au sol',
     belowStep:'correction sous le pas',
     ballistic: m => 'correction ' + m + ' m',
@@ -466,7 +470,10 @@ const I18N = {
       '</code> follows the displayed order.',
     cardinals:['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'],
     compassPoints:['N','E','S','W'],
-    rangeToDial:'Range', azimuthToDial:'Azimuth',
+    rangeToDial:'Range', azimuthToDial:'Azimuth', milToDial:'MIL',
+    milBracket: (lo, hi, pct) => 'between ' + lo + ' and ' + hi + ' · ' + pct + ' % towards ' + hi,
+    milExact:'right on a ladder mark', noMil:'off table',
+    azDither: v => 'alternate with ' + v + '°',
     onGround: m => m + ' m on the ground',
     belowStep:'correction below dial step',
     ballistic: m => 'correction ' + m + ' m',
@@ -691,9 +698,16 @@ function dialable(groundM, azimuthDeg, useCurve){
   // sur la cible au lieu de garder un biais systematique d'un demi-cran.
   const frac = Math.abs(exact - dialed) / DIAL_RANGE_STEP_M;
   const alt = frac > 0.3 ? dialed + Math.sign(exact - dialed) * DIAL_RANGE_STEP_M : null;
+  const azExact = ((azimuthDeg % 360) + 360) % 360;
+  const azDialed = ((Math.round(azExact / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) % 360 + 360) % 360;
+  const azFrac = Math.abs(azExact - Math.round(azExact / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) / DIAL_AZIMUTH_STEP_DEG;
+  const azAlt = azFrac > 0.3
+    ? ((azDialed + Math.sign(azExact - Math.round(azExact / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) % 360 + 360) % 360
+    : null;
   return {
     range_dialed: dialed,
     range_alt: alt,
+    azimuth_alt: azAlt,
     range_exact: exact,
     azimuth_dialed: ((Math.round(azimuthDeg / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) % 360 + 360) % 360,
     azimuth_step_m: (DIAL_AZIMUTH_STEP_DEG / 2) * Math.PI / 180 * groundM,
@@ -1017,9 +1031,15 @@ function renderSolutions(){
     // champ d'altitude est active. Les deux sont des informations de recoupement.
     const mHigh = milsFor(s.distance_m, 'high');
     const mLow = milsFor(s.distance_m, 'low');
-    const milLine = mHigh !== null
-      ? T().mils(fmt(mHigh), T().arcHigh) + (mLow !== null ? ' · ' + T().mils(fmt(mLow), T().arcLow) : '')
-      : '';
+    const milLine = mLow !== null ? T().mils(fmt(mLow), T().arcLow) : '';
+    const milExact = milsFor(d.range_dialed, 'high');
+    let milBig = '—', milSub = T().noMil;
+    if (milExact !== null) {
+      const lo = Math.floor(milExact / 10) * 10, hi = lo + 10;
+      const pct = Math.round((milExact - lo) / 10 * 100);
+      milBig = fmt(Math.round(milExact));
+      milSub = pct <= 5 || pct >= 95 ? T().milExact : T().milBracket(fmt(lo), fmt(hi), pct);
+    }
     let dzLine = '';
     if (state.terrain) {
       const zb = heightAt(b.x, b.y), zt = heightAt(aim.x, aim.y);
@@ -1052,10 +1072,16 @@ function renderSolutions(){
             : '') + '</div>' +
       '</div>' +
       '<div class="fig">' +
+        '<div class="k">' + T().milToDial + '</div>' +
+        '<div class="v mid">' + milBig + '</div>' +
+        '<div class="s">' + milSub + '</div>' +
+      '</div>' +
+      '<div class="fig">' +
         '<div class="k">' + T().azimuthToDial + '</div>' +
         '<div class="v">' + fmt(d.azimuth_dialed) + '<span class="u">°</span></div>' +
         '<div class="s">' + T().cardinals[s.cardinal_idx] + ' · ' +
-          T().perDegree(fmt(d.azimuth_step_m * 2)) + '</div>' +
+          T().perDegree(fmt(d.azimuth_step_m * 2)) +
+          (d.azimuth_alt !== null ? ' · ' + T().azDither(fmt(d.azimuth_alt)) : '') + '</div>' +
       '</div>' +
       ((milLine || dzLine)
         ? '<div class="info">' + [milLine, dzLine].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div>' : '') +
