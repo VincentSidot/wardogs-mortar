@@ -40,14 +40,17 @@ entre `X puis Y` et `Y puis X`.
 
 ## Hebergement sur GitHub Pages
 
-    git remote add origin https://github.com/<toi>/artillerie.git
-    git push -u origin main
+Depot : <https://github.com/VincentSidot/wardogs-mortar>
 
-Puis dans le depot : **Settings -> Pages -> Source: Deploy from a branch**,
-branche `main`, dossier `/ (root)`. La page sort sur
-`https://<toi>.github.io/artillerie/` en une minute ou deux.
+Activation (une seule fois) : **Settings -> Pages -> Source: Deploy from a
+branch**, branche `main`, dossier `/ (root)`. La page sort sur
+<https://vincentsidot.github.io/wardogs-mortar/> apres une minute ou deux.
 
 Le depot doit etre public pour Pages sur un compte gratuit.
+
+Ensuite, chaque mise a jour se deploie toute seule :
+
+    git add -A && git commit -m "..." && git push
 
 ## Fichiers
 
