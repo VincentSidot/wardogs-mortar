@@ -212,3 +212,120 @@ def dialable(ground_m, azimuth_deg, use_curve=False):
         "azimuth_step_m": math.radians(DIAL_AZIMUTH_STEP_DEG / 2) * ground_m,
         "correction_below_step": abs(exact_range - ground_m) < DIAL_RANGE_STEP_M / 2,
     }
+
+
+# ---------------------------------------------------------------------------
+# Modele de piece : les causes d'erreur appartiennent a la position de la piece
+# (inclinaison du chassis, biais de vitesse ou de table, decalage d'azimut),
+# pas a la cible. On les apprend sur tous les impacts d'une batterie et on les
+# applique a toute cible tiree depuis la meme position. Miroir de index.html.
+#
+#   erreur de portee  = c + s(D) * (alpha*cos A + beta*sin A)
+#   erreur laterale   = delta * D
+MODEL_PRIOR = {"sigma_r": 12.0, "sigma_l": 12.0, "tau_c": 40.0, "tau_tilt": 20.0,
+               "tau_delta": math.pi / 180}
+
+# Table communautaire (wardogs-artillery.com), arc haut : (portee m, mil).
+SPH2_HIGH = sorted([
+    [735, 1400], [780, 1390], [825, 1380], [869, 1370], [913, 1360], [956, 1350], [999,
+    1340], [1041, 1330], [1083, 1320], [1124, 1310], [1165, 1300], [1205, 1290], [1245,
+    1280], [1285, 1270], [1324, 1260], [1363, 1250], [1401, 1240], [1438, 1230], [1475,
+    1220], [1512, 1210], [1547, 1200], [1582, 1190], [1616, 1180], [1650, 1170], [1684,
+    1160], [1717, 1150], [1750, 1140], [1782, 1130], [1813, 1120], [1844, 1110], [1875,
+    1100], [1905, 1090], [1934, 1080], [1963, 1070], [1991, 1060], [2019, 1050], [2046,
+    1040], [2072, 1030], [2098, 1020], [2123, 1010], [2147, 1000], [2171, 990], [2194,
+    980], [2217, 970], [2239, 960], [2261, 950], [2282, 940], [2303, 930], [2323, 920],
+    [2342, 910], [2360, 900], [2378, 890], [2395, 880], [2412, 870], [2429, 860], [2444,
+    850], [2460, 840], [2474, 830], [2488, 820], [2501, 810], [2513, 800], [2524, 790],
+    [2536, 780], [2546, 770], [2557, 760], [2567, 750], [2576, 740], [2584, 730], [2592,
+    720], [2599, 710], [2604, 700], [2609, 690], [2613, 680], [2617, 670], [2621, 660],
+    [2624, 650], [2626, 640], [2628, 630], [2629, 610], [2629, 620],
+])
+
+
+def range_slope_m_per_mil(ground_m, table=SPH2_HIGH):
+    """Sensibilite de la portee a l'elevation (m/mil) autour de ground_m."""
+    bi = 0
+    for i in range(len(table) - 1):
+        if table[i][0] <= ground_m <= table[i + 1][0]:
+            bi = i
+            break
+        if abs(table[i][0] - ground_m) < abs(table[bi][0] - ground_m):
+            bi = i
+    r0, m0 = table[bi]
+    r1, m1 = table[min(bi + 1, len(table) - 1)]
+    return 0.0 if m1 == m0 else (r1 - r0) / (m1 - m0)
+
+
+def _solve3(n, v):
+    a = [row[:] for row in n]
+    b = v[:]
+    for i in range(3):
+        p = max(range(i, 3), key=lambda r: abs(a[r][i]))
+        a[i], a[p] = a[p], a[i]
+        b[i], b[p] = b[p], b[i]
+        for r in range(i + 1, 3):
+            f = a[r][i] / a[i][i]
+            for c in range(i, 3):
+                a[r][c] -= f * a[i][c]
+            b[r] -= f * b[i]
+    x = [0.0, 0.0, 0.0]
+    for i in (2, 1, 0):
+        acc = b[i] - sum(a[i][c] * x[c] for c in range(i + 1, 3))
+        x[i] = acc / a[i][i]
+    return x
+
+
+def fit_battery(gun, shots, meters_per_point=METERS_PER_POINT, prior=MODEL_PRIOR):
+    """Ajuste le modele de piece. shots : liste de ((impact_x, impact_y), (aim_x, aim_y))."""
+    rows = []
+    for (ix, iy), (ax, ay) in shots:
+        intended = solve(gun, (ax, ay), meters_per_point)
+        measured = solve(gun, (ix, iy), meters_per_point)
+        d = intended["distance_m"]
+        a = math.radians(intended["azimuth_deg"])
+        da = (measured["azimuth_deg"] - intended["azimuth_deg"] + 540) % 360 - 180
+        rows.append((d, a, measured["distance_m"] - d, d * math.radians(da), range_slope_m_per_mil(d)))
+
+    p = prior
+    n_mat = [[1 / p["tau_c"] ** 2, 0, 0], [0, 1 / p["tau_tilt"] ** 2, 0], [0, 0, 1 / p["tau_tilt"] ** 2]]
+    v = [0.0, 0.0, 0.0]
+    w = 1 / p["sigma_r"] ** 2
+    for d, a, er, el, sl in rows:
+        x = [1.0, sl * math.cos(a), sl * math.sin(a)]
+        for i in range(3):
+            v[i] += w * x[i] * er
+            for j in range(3):
+                n_mat[i][j] += w * x[i] * x[j]
+    c, alpha, beta = _solve3(n_mat, v) if rows else (0.0, 0.0, 0.0)
+
+    nd = 1 / p["tau_delta"] ** 2
+    vd = 0.0
+    wl = 1 / p["sigma_l"] ** 2
+    for d, a, er, el, sl in rows:
+        nd += wl * d * d
+        vd += wl * d * el
+    delta = vd / nd
+
+    ss = 0.0
+    for d, a, er, el, sl in rows:
+        pr = c + sl * (alpha * math.cos(a) + beta * math.sin(a))
+        ss += (er - pr) ** 2 + (el - delta * d) ** 2
+    return {"n": len(rows), "c": c, "alpha": alpha, "beta": beta, "delta": delta,
+            "rms": math.sqrt(ss / (2 * len(rows))) if rows else 0.0}
+
+
+def aim_with_model(gun, target, model, meters_per_point=METERS_PER_POINT):
+    """Point de visee tel que le tir, entache de l'erreur predite, tombe sur la cible."""
+    if not model or not model["n"]:
+        return tuple(target)
+    want = solve(gun, target, meters_per_point)
+    d, a = want["distance_m"], want["azimuth_deg"]
+    for _ in range(3):
+        ar = math.radians(a)
+        er = model["c"] + range_slope_m_per_mil(d) * (model["alpha"] * math.cos(ar) + model["beta"] * math.sin(ar))
+        el = model["delta"] * d
+        d = want["distance_m"] - er
+        a = want["azimuth_deg"] - math.degrees(el / want["distance_m"])
+    pt = project(gun, d, a, meters_per_point)
+    return (pt["x"], pt["y"])

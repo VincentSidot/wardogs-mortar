@@ -1,5 +1,6 @@
 # Wardogs Mortar
 
+v2.1.0 · 
 Artillery fire-control calculator for War Dogs.
 **<https://vincentsidot.github.io/wardogs-mortar/>**
 
@@ -12,11 +13,17 @@ to dial. Single static page, no server, works offline. English / French.
   target, side by side.
 - **Fire missions.** Each target is a saved mission with its own shot log.
   Switch away and come back later, the corrections are still there.
-- **Adjust from impacts.** Log where the round actually landed. The gun's bias
-  is estimated as the *average* miss relative to what was aimed, so a single
-  impact corrects fully and several smooth each other out instead of making
-  the aim chase dispersion. Tracked per battery. Misses below the noise floor
-  (±10 MOA dispersion + dial steps) are tagged as such.
+- **Gun model.** Every logged impact feeds a model of the gun that fired:
+  a range bias, a chassis tilt plane (error varying with azimuth) and an
+  azimuth drift, fitted by regularised least squares over all its impacts
+  across missions. A ranging round on one target therefore corrects every
+  other target fired from the same position. On a synthetic gun with 15 mil of
+  tilt and −18 m of bias, three ranging rounds bring the first-round miss on
+  300 fresh targets from 38 m down to 16 m — the floor set by the 25 m / 1°
+  dial steps. When the gun moves, add a new battery.
+- **Dial dithering.** When the exact range falls between two 25 m steps the
+  solution names both, so alternating them on fire-for-effect centres the
+  mean impact on the target instead of carrying a half-step bias.
 - **Reverse mode.** Enter what you actually dialled and see which coordinate
   that shot aims at. This is how you catch a stale battery position — on a
   self-propelled gun it changes the moment you drive.

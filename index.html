@@ -160,6 +160,7 @@
   <h1><span data-i18n="brand">Wardogs</span><span class="sep">/</span><span class="sub" data-i18n="appTitle">Calcul artillerie</span></h1>
   <span class="spacer"></span>
   <span class="meta" data-i18n="subtitle">1 pt = 100 m</span>
+  <span class="meta" id="version" title="version"></span>
   <button id="lang" class="ghost small">EN</button>
 </header>
 
@@ -296,6 +297,10 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// Version affichee dans l'en-tete. A incrementer a chaque livraison notable :
+// majeur = modele de donnees, mineur = fonctionnalite, correctif = le reste.
+const APP_VERSION = '2.1.0';
+
 /* ============================================================ i18n ==== */
 const I18N = {
   fr: {
@@ -311,9 +316,15 @@ const I18N = {
     impactX:'Impact X', impactY:'Impact Y', firedBy:'Tirée par', logShot:'Enregistrer',
     thNo:'#', thBattery:'Batterie', thImpact:'Impact', thMiss:'Écart',
     noShots:'Aucun impact enregistré.',
-    shotsHint:'Le point de visée est corrigé de la <em>moyenne</em> des écarts observés pour ' +
-      'la batterie qui a tiré : un impact isolé corrige à fond, plusieurs se lissent entre eux ' +
-      'au lieu de faire osciller la visée. Chaque batterie a sa propre correction.',
+    shotsHint:'Chaque impact alimente le <strong>modèle de la pièce</strong> qui a tiré : un biais ' +
+      'de portée, un plan d’inclinaison du châssis (qui varie avec l’azimut) et une dérive ' +
+      'd’azimut, ajustés par moindres carrés régularisés sur <em>tous</em> ses impacts, toutes ' +
+      'missions confondues. Un coup de réglage sur une cible corrige donc aussi les autres ' +
+      'cibles tirées depuis la même position. Si la pièce bouge, crée une nouvelle batterie.',
+    modelLine: (n, c, tilt, tiltAz, delta, rms) => 'Modèle · ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ' · biais ' + c + ' m · inclin. ' + tilt + ' mil → ' + tiltAz + '° · dérive ' + delta + '°' +
+      (n > 1 ? ' · résidu ±' + rms + ' m' : ''),
+    ditherWith: v => 'alterner avec ' + v,
     corrLine: (n, x, y) => 'Visée corrigée sur ' + n + (n > 1 ? ' impacts' : ' impact') +
       ' : ' + x + ' / ' + y,
     reverseSection:'Mode inverse — vérifier un tir', fromBattery:'Depuis',
@@ -388,9 +399,15 @@ const I18N = {
     impactX:'Impact X', impactY:'Impact Y', firedBy:'Fired by', logShot:'Log',
     thNo:'#', thBattery:'Battery', thImpact:'Impact', thMiss:'Miss',
     noShots:'No impacts logged.',
-    shotsHint:'The aim point is corrected by the <em>average</em> of the observed misses for ' +
-      'the battery that fired: a single impact corrects fully, several smooth each other out ' +
-      'instead of making the aim oscillate. Each battery has its own correction.',
+    shotsHint:'Each impact feeds the <strong>model of the gun</strong> that fired: a range bias, ' +
+      'a chassis tilt plane (varying with azimuth) and an azimuth drift, fitted by regularised ' +
+      'least squares over <em>all</em> its impacts across missions. A ranging round on one target ' +
+      'therefore also corrects the other targets fired from the same position. If the gun moves, ' +
+      'create a new battery.',
+    modelLine: (n, c, tilt, tiltAz, delta, rms) => 'Model · ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ' · bias ' + c + ' m · tilt ' + tilt + ' mil → ' + tiltAz + '° · drift ' + delta + '°' +
+      (n > 1 ? ' · residual ±' + rms + ' m' : ''),
+    ditherWith: v => 'alternate with ' + v,
     corrLine: (n, x, y) => 'Aim corrected on ' + n + (n > 1 ? ' impacts' : ' impact') +
       ': ' + x + ' / ' + y,
     reverseSection:'Reverse mode — check a shot', fromBattery:'From',
@@ -653,13 +670,131 @@ const DIAL_RANGE_STEP_M = 25;
 
 function dialable(groundM, azimuthDeg, useCurve){
   const exact = useCurve ? dialRange(groundM) : groundM;
+  const dialed = Math.round(exact / DIAL_RANGE_STEP_M) * DIAL_RANGE_STEP_M;
+  // Dithering : quand la valeur exacte tombe franchement entre deux crans,
+  // alterner les deux sur les coups d'efficacite centre la moyenne des impacts
+  // sur la cible au lieu de garder un biais systematique d'un demi-cran.
+  const frac = Math.abs(exact - dialed) / DIAL_RANGE_STEP_M;
+  const alt = frac > 0.3 ? dialed + Math.sign(exact - dialed) * DIAL_RANGE_STEP_M : null;
   return {
-    range_dialed: Math.round(exact / DIAL_RANGE_STEP_M) * DIAL_RANGE_STEP_M,
+    range_dialed: dialed,
+    range_alt: alt,
     range_exact: exact,
     azimuth_dialed: ((Math.round(azimuthDeg / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) % 360 + 360) % 360,
     azimuth_step_m: (DIAL_AZIMUTH_STEP_DEG / 2) * Math.PI / 180 * groundM,
     correction_below_step: Math.abs(exact - groundM) < DIAL_RANGE_STEP_M / 2
   };
+}
+
+/* ================================================== modele de piece ==== */
+// Les causes d'erreur appartiennent a la position de la piece, pas a la cible :
+// inclinaison du chassis, biais de vitesse ou de table, decalage d'azimut.
+// On les apprend une fois par batterie sur tous ses impacts, et on les
+// applique a toute cible tiree depuis la meme position.
+//
+//   erreur de portee  = c + s(D) * (alpha*cos A + beta*sin A)
+//   erreur laterale   = delta * D
+//
+// c en m ; (alpha, beta) plan d'inclinaison en mils, converti en metres par la
+// sensibilite s(D) de la table ; delta en radians. Moindres carres avec un
+// a priori gaussien (ridge) 'pas d'inclinaison, pas de biais', ce qui rend le
+// modele sage avec un seul impact et precis avec trois sur des azimuts varies.
+const MODEL_PRIOR = { sigmaR: 12, sigmaL: 12, tauC: 40, tauTilt: 20, tauDelta: Math.PI / 180 };
+
+// Sensibilite de la portee a l'elevation (m/mil) sur l'arc haut, celui du
+// viseur observe. Proche de l'apex elle tend vers zero : l'inclinaison y
+// devient inobservable et le biais constant prend le relais.
+const TABLE_HIGH_ASC = SPH2_TABLE.high.slice().sort((a, b) => a[0] - b[0]);
+function rangeSlopeMPerMil(groundM){
+  const t = TABLE_HIGH_ASC;
+  let bi = 0;
+  for (let i = 0; i < t.length - 1; i++) {
+    if (groundM >= t[i][0] && groundM <= t[i + 1][0]) { bi = i; break; }
+    if (Math.abs(t[i][0] - groundM) < Math.abs(t[bi][0] - groundM)) bi = i;
+  }
+  const r0 = t[bi][0], m0 = t[bi][1];
+  const r1 = t[Math.min(bi + 1, t.length - 1)][0], m1 = t[Math.min(bi + 1, t.length - 1)][1];
+  return m1 === m0 ? 0 : (r1 - r0) / (m1 - m0);
+}
+
+function solve3(N, v){
+  const a = N.map(r => r.slice()), b = v.slice();
+  for (let i = 0; i < 3; i++) {
+    let p = i;
+    for (let r = i + 1; r < 3; r++) if (Math.abs(a[r][i]) > Math.abs(a[p][i])) p = r;
+    [a[i], a[p]] = [a[p], a[i]]; [b[i], b[p]] = [b[p], b[i]];
+    for (let r = i + 1; r < 3; r++) {
+      const f = a[r][i] / a[i][i];
+      for (let c = i; c < 3; c++) a[r][c] -= f * a[i][c];
+      b[r] -= f * b[i];
+    }
+  }
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) {
+    let acc = b[i];
+    for (let c = i + 1; c < 3; c++) acc -= a[i][c] * x[c];
+    x[i] = acc / a[i][i];
+  }
+  return x;
+}
+
+function batteryShots(b){
+  const out = [];
+  state.missions.forEach(m => m.shots.forEach(sh => { if (sh.batteryId === b.id) out.push(sh); }));
+  return out;
+}
+
+function fitBattery(b, mppv){
+  const rows = batteryShots(b).map(sh => {
+    const intended = solve(b, { x: sh.aimX, y: sh.aimY }, mppv);
+    const measured = solve(b, { x: sh.x, y: sh.y }, mppv);
+    const D = intended.distance_m, A = intended.azimuth_deg * Math.PI / 180;
+    const dA = ((measured.azimuth_deg - intended.azimuth_deg + 540) % 360) - 180;
+    return { D: D, A: A, eR: measured.distance_m - D, eL: D * dA * Math.PI / 180, sl: rangeSlopeMPerMil(D) };
+  });
+  const P = MODEL_PRIOR, n = rows.length;
+
+  const N = [[1 / (P.tauC * P.tauC), 0, 0], [0, 1 / (P.tauTilt * P.tauTilt), 0], [0, 0, 1 / (P.tauTilt * P.tauTilt)]];
+  const v = [0, 0, 0], w = 1 / (P.sigmaR * P.sigmaR);
+  rows.forEach(r => {
+    const x = [1, r.sl * Math.cos(r.A), r.sl * Math.sin(r.A)];
+    for (let i = 0; i < 3; i++) { v[i] += w * x[i] * r.eR; for (let j = 0; j < 3; j++) N[i][j] += w * x[i] * x[j]; }
+  });
+  const [c, alpha, beta] = n ? solve3(N, v) : [0, 0, 0];
+
+  let nd = 1 / (P.tauDelta * P.tauDelta), vd = 0;
+  const wl = 1 / (P.sigmaL * P.sigmaL);
+  rows.forEach(r => { nd += wl * r.D * r.D; vd += wl * r.D * r.eL; });
+  const delta = vd / nd;
+
+  let ss = 0;
+  rows.forEach(r => {
+    const pr = c + r.sl * (alpha * Math.cos(r.A) + beta * Math.sin(r.A));
+    ss += (r.eR - pr) * (r.eR - pr) + (r.eL - delta * r.D) * (r.eL - delta * r.D);
+  });
+  return { n: n, c: c, alpha: alpha, beta: beta, delta: delta, rms: n ? Math.sqrt(ss / (2 * n)) : 0 };
+}
+
+function predictedError(model, D, Adeg){
+  const A = Adeg * Math.PI / 180;
+  return { eR: model.c + rangeSlopeMPerMil(D) * (model.alpha * Math.cos(A) + model.beta * Math.sin(A)),
+           eL: model.delta * D };
+}
+
+// Point de visee : on cherche (D, A) tels que le tir, une fois entache de
+// l'erreur predite, tombe sur la cible. Trois iterations de point fixe suffisent,
+// l'erreur variant lentement avec D et A.
+function aimWithModel(b, target, model, mppv){
+  if (!model || !model.n) return { x: target.x, y: target.y };
+  const want = solve(b, target, mppv);
+  let D = want.distance_m, A = want.azimuth_deg;
+  for (let k = 0; k < 3; k++) {
+    const e = predictedError(model, D, A);
+    D = want.distance_m - e.eR;
+    A = want.azimuth_deg - (e.eL / want.distance_m) * 180 / Math.PI;
+  }
+  const pt = project(b, D, A, mppv);
+  return { x: pt.x, y: pt.y };
 }
 
 /* ================================================ modele de mission ==== */
@@ -669,21 +804,16 @@ const mission = () => state.missions.find(m => m.id === state.activeMissionId) |
 const missionReady = m => !!m && m.x !== null && m.y !== null &&
                           Number.isFinite(m.x) && Number.isFinite(m.y);
 
-// Reglage amorti : le biais de la piece est estime par la moyenne des ecarts
-// (impact - point vise) de ses tirs, et la visee vaut cible - biais. Un seul
-// impact corrige a fond ; plusieurs se lissent au lieu de faire osciller la
-// visee au rythme de la dispersion. Le compte est propre a chaque batterie.
+// Modeles de piece du rendu courant, recalcules une fois par render().
+let models = {};
+function modelFor(b){
+  if (!models[b.id]) models[b.id] = fitBattery(b, mpp());
+  return models[b.id];
+}
 function aimFor(m, batteryId){
-  let bx = 0, by = 0, n = 0;
-  for (let i = 0; i < m.shots.length; i++) {
-    const s = m.shots[i];
-    if (s.batteryId !== batteryId) continue;
-    bx += s.x - s.aimX;
-    by += s.y - s.aimY;
-    n++;
-  }
-  if (!n) return { x: m.x, y: m.y };
-  return { x: m.x - bx / n, y: m.y - by / n };
+  const b = battery(batteryId);
+  if (!b) return { x: m.x, y: m.y };
+  return aimWithModel(b, { x: m.x, y: m.y }, modelFor(b), mpp());
 }
 const shotsOf = (m, bid) => m.shots.filter(s => s.batteryId === bid);
 
@@ -850,7 +980,8 @@ function renderSolutions(){
 
   state.batteries.forEach(b => {
     const aim = aimFor(m, b.id);
-    const n = shotsOf(m, b.id).length;
+    const model = modelFor(b);
+    const n = model.n;
     const s = solve(b, aim, scale);
     const d = dialable(s.distance_m, s.azimuth_deg, state.terrainCurve);
     const status = rangeStatus(s.distance_m);
@@ -887,6 +1018,7 @@ function renderSolutions(){
         '<div class="k">' + T().rangeToDial + '</div>' +
         '<div class="v">' + fmt(d.range_dialed) + '<span class="u"> m</span></div>' +
         '<div class="s">' + T().onGround(fmt(s.distance_m)) + ' · ' + T().dispersion(fmt(dispersionM(s.distance_m))) +
+          (d.range_alt !== null ? ' · ' + T().ditherWith(fmt(d.range_alt)) : '') +
           (state.terrainCurve && !d.correction_below_step
             ? ' · ' + T().ballistic((d.range_exact >= s.distance_m ? '+' : '') +
                                     fmt(d.range_exact - s.distance_m))
@@ -900,7 +1032,12 @@ function renderSolutions(){
       '</div>' +
       ((milLine || dzLine)
         ? '<div class="info">' + [milLine, dzLine].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div>' : '') +
-      (n ? '<div class="corr">' + T().corrLine(n, fmt(aim.x, 2), fmt(aim.y, 2)) + '</div>' : '') +
+      (n ? '<div class="corr">' + T().corrLine(shotsOf(m, b.id).length || n, fmt(aim.x, 2), fmt(aim.y, 2)) +
+             '<br>' + T().modelLine(n, (model.c >= 0 ? '+' : '') + fmt(model.c),
+               fmt(Math.hypot(model.alpha, model.beta), 1),
+               fmt(((Math.atan2(model.beta, model.alpha) * 180 / Math.PI) % 360 + 360) % 360),
+               (model.delta >= 0 ? '+' : '') + fmt(model.delta * 180 / Math.PI, 2), fmt(model.rms)) +
+           '</div>' : '') +
       statusLine;
 
     el.addEventListener('click', () => {
@@ -926,8 +1063,17 @@ function logShot(){
   $('shotErr').textContent = '';
   // On memorise le point vise au moment du tir : c'est lui, pas la cible,
   // qui sert de reference pour mesurer l'ecart de la piece.
+  models = {};
+  // Le point vise enregistre est celui que la piece a reellement recu : portee
+  // et azimut arrondis au cran affiche. Sinon l'ecart d'arrondi (jusqu'a 12 m
+  // et 1/2 degre) entrerait dans le modele comme si c'etait une erreur de la piece.
+  const b = battery(bid);
   const aim = aimFor(m, bid);
-  m.shots.push({ id: uid('s'), batteryId: bid, x: x, y: y, aimX: aim.x, aimY: aim.y });
+  const sol = solve(b, aim, mpp());
+  const d = dialable(sol.distance_m, sol.azimuth_deg, state.terrainCurve);
+  const dialed = project(b, state.terrainCurve ? sol.distance_m * d.range_dialed / d.range_exact : d.range_dialed,
+                         d.azimuth_dialed, mpp());
+  m.shots.push({ id: uid('s'), batteryId: bid, x: x, y: y, aimX: dialed.x, aimY: dialed.y });
   $('ix').value = ''; $('iy').value = '';
   persist(); render();
 }
@@ -1118,6 +1264,7 @@ function runProject(){
 
 /* ========================================================== rendu ===== */
 function render(){
+  models = {};
   $('curve').textContent = state.terrainCurve ? T().curveOn : T().curveOff;
   $('curve').style.color = state.terrainCurve ? 'var(--accent)' : '';
   $('curve').style.borderColor = state.terrainCurve ? 'var(--accent-dim)' : '';
@@ -1213,6 +1360,7 @@ $('lang').addEventListener('click', () => {
   persist(); applyLang();
 });
 
+$('version').textContent = 'v' + APP_VERSION;
 $('scale').value = state.scale || 100;
 if (!state.activeBatteryId && state.batteries.length) state.activeBatteryId = state.batteries[0].id;
 if (!state.activeMissionId && state.missions.length) state.activeMissionId = state.missions[0].id;
