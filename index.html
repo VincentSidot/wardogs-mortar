@@ -117,6 +117,7 @@
   .sol .corr{grid-column:1/-1;color:var(--ok);font-size:11px;font-family:var(--mono)}
   .sol .note{grid-column:1/-1;color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);
              padding-top:8px}
+  .sol .info{grid-column:1/-1;color:var(--dim);font-size:11px;font-family:var(--mono)}
   @media(max-width:560px){.sol{grid-template-columns:1fr 1fr}.sol .who{grid-column:1/-1}}
 
   .list{display:flex;flex-direction:column;gap:6px}
@@ -281,8 +282,12 @@
                <button id="order" class="ghost small" style="padding:9px 11px">X puis Y</button></div>
           <div><label for="curve" data-i18n="curveLabel">Offset terrain</label>
                <button id="curve" class="ghost small" style="padding:9px 11px">OFF</button></div>
+          <div><label for="terrain" data-i18n="terrainLabel">Altitudes (ΔZ)</label>
+               <button id="terrain" class="ghost small" style="padding:9px 11px">OFF</button></div>
         </div>
         <p class="hint" data-i18n-html="calibHint"></p>
+        <p class="hint" data-i18n-html="terrainHint"></p>
+        <div class="err" id="terrainErr"></div>
       </details>
     </section>
   </div>
@@ -327,6 +332,18 @@ const I18N = {
       'cette position — ailleurs, laisse-la sur OFF et règle avec le premier coup. ' +
       'Les valeurs sont arrondies au réglable : azimut au degré, portée par crans de 25 m.',
     curveLabel:'Offset terrain', curveOn:'ON · 05/09', curveOff:'OFF',
+    terrainLabel:'Altitudes (ΔZ)', terrainOn:'ON', terrainOff:'OFF',
+    terrainHint:'<strong>Altitudes</strong> : champ d’altitude de Bakurani (maille 2 m) servi par ' +
+      '<a href="https://wardogs-artillery.com/" target="_blank" rel="noopener" style="color:var(--dim)">' +
+      'wardogs-artillery.com</a> (Apollyon), chargé à la demande par morceaux de 0,5 Mo. Affiche le ' +
+      'dénivelé cible − batterie sur chaque solution, <em>à titre d’information</em> : on a mesuré que ' +
+      'le déficit de portée suit ΔZ mais 2 à 3 fois moins qu’une table plate ne le prédirait, donc ' +
+      'aucune correction automatique.',
+    terrainLoading:'altitudes…', terrainOut:'hors couverture',
+    dz: v => 'ΔZ ' + v + ' m',
+    mils: (m, arc) => m + ' mil · ' + arc,
+    arcLow:'arc bas', arcHigh:'arc haut',
+    terrainErr:'Altitudes indisponibles (réseau ?). Réessaie plus tard.',
     tooClose: min => 'Trop près : portée mini ' + min + ' m',
     highArcOnly: lim => 'Arc haut obligatoire (arc bas dès ' + lim + ' m)',
     outOfRange: max => 'Hors de portée (max ' + max + ' m)',
@@ -392,6 +409,17 @@ const I18N = {
       'anywhere else leave it OFF and adjust from the first round. Values are rounded to what ' +
       'is dialable: azimuth to the degree, range in 25 m steps.',
     curveLabel:'Terrain offset', curveOn:'ON · 05/09', curveOff:'OFF',
+    terrainLabel:'Heights (ΔZ)', terrainOn:'ON', terrainOff:'OFF',
+    terrainHint:'<strong>Heights</strong>: Bakurani heightfield (2 m mesh) served by ' +
+      '<a href="https://wardogs-artillery.com/" target="_blank" rel="noopener" style="color:var(--dim)">' +
+      'wardogs-artillery.com</a> (Apollyon), loaded on demand in 0.5 MB chunks. Shows target − battery ' +
+      'height on each solution, <em>for information</em>: measured range deficit tracks ΔZ but 2–3× ' +
+      'less than a flat table would predict, so no automatic correction.',
+    terrainLoading:'heights…', terrainOut:'outside coverage',
+    dz: v => 'ΔZ ' + v + ' m',
+    mils: (m, arc) => m + ' mil · ' + arc,
+    arcLow:'low arc', arcHigh:'high arc',
+    terrainErr:'Heights unavailable (network?). Try again later.',
     tooClose: min => 'Too close: minimum range ' + min + ' m',
     highArcOnly: lim => 'High arc only (low arc from ' + lim + ' m)',
     outOfRange: max => 'Out of range (max ' + max + ' m)',
@@ -459,7 +487,7 @@ function migrate(raw){
 }
 
 const state = Object.assign({
-  lang: defaultLang(), scale: 100, yFirst: false, terrainCurve: false,
+  lang: defaultLang(), scale: 100, yFirst: false, terrainCurve: false, terrain: false,
   batteries: [], missions: [], activeBatteryId: null, activeMissionId: null
 }, migrate(store.load()));
 
@@ -530,6 +558,93 @@ function dialRange(groundM){
     }
   }
   return groundM;
+}
+
+const SPH2_TABLE = {
+  low: [[1181,20],[1232,30],[1283,40],[1334,50],[1384,60],[1433,70],[1482,80],[1529,90],[1576,100],[1622,110],[1666,120],[1709,130],[1751,140],[1792,150],[1832,160],[1870,170],[1907,180],[1944,190],[1979,200],[2014,210],[2046,220],[2079,230],[2110,240],[2139,250],[2168,260],[2196,270],[2223,280],[2249,290],[2273,300],[2296,310],[2319,320],[2341,330],[2362,340],[2383,350],[2403,360],[2422,370],[2439,380],[2456,390],[2471,400],[2485,410],[2499,420],[2513,430],[2526,440],[2538,450],[2550,460],[2561,470],[2570,480],[2579,490],[2586,500],[2593,510],[2599,520],[2605,530],[2610,540],[2615,550],[2620,560],[2623,570],[2626,580],[2628,590],[2629,600]],
+  high: [[2629,610],[2629,620],[2628,630],[2626,640],[2624,650],[2621,660],[2617,670],[2613,680],[2609,690],[2604,700],[2599,710],[2592,720],[2584,730],[2576,740],[2567,750],[2557,760],[2546,770],[2536,780],[2524,790],[2513,800],[2501,810],[2488,820],[2474,830],[2460,840],[2444,850],[2429,860],[2412,870],[2395,880],[2378,890],[2360,900],[2342,910],[2323,920],[2303,930],[2282,940],[2261,950],[2239,960],[2217,970],[2194,980],[2171,990],[2147,1000],[2123,1010],[2098,1020],[2072,1030],[2046,1040],[2019,1050],[1991,1060],[1963,1070],[1934,1080],[1905,1090],[1875,1100],[1844,1110],[1813,1120],[1782,1130],[1750,1140],[1717,1150],[1684,1160],[1650,1170],[1616,1180],[1582,1190],[1547,1200],[1512,1210],[1475,1220],[1438,1230],[1401,1240],[1363,1250],[1324,1260],[1285,1270],[1245,1280],[1205,1290],[1165,1300],[1124,1310],[1083,1320],[1041,1330],[999,1340],[956,1350],[913,1360],[869,1370],[825,1380],[780,1390],[735,1400]]
+};
+
+// Elevation (mils) pour une portee au sol, par interpolation dans la table
+// communautaire. L'arc bas n'existe qu'au-dela de 1181 m ; on rend l'arc haut
+// par defaut puisque c'est celui du viseur observe (990-1100 mil).
+function milsFor(groundM, arc){
+  const t = SPH2_TABLE[arc];
+  if (!t) return null;
+  const asc = t.slice().sort((a, b) => a[0] - b[0]);
+  if (groundM < asc[0][0] || groundM > asc[asc.length - 1][0]) return null;
+  for (let i = 0; i < asc.length - 1; i++) {
+    const [r0, m0] = asc[i], [r1, m1] = asc[i + 1];
+    if (groundM >= r0 && groundM <= r1) {
+      return r1 === r0 ? m0 : m0 + (m1 - m0) * (groundM - r0) / (r1 - r0);
+    }
+  }
+  return null;
+}
+
+/* ================================================= champ d'altitude ==== */
+// Donnees servies par wardogs-artillery.com (Apollyon) avec CORS ouvert :
+// un manifeste par carte, puis des morceaux u16 de 511x511 sommets a 2 m,
+// charges a la demande. Le datum est relatif : seules les differences comptent.
+const TERRAIN_BASE = 'https://wardogs-artillery.com/data/terrain/';
+const TERRAIN_MAPS = { bakurani: { x: [23.35, 133.6], y: [19.34, 129.65] } };
+const terrain = { manifest: null, chunks: new Map(), pending: new Map(), failed: false };
+
+function terrainMapFor(x, y){
+  for (const id in TERRAIN_MAPS) {
+    const b = TERRAIN_MAPS[id];
+    if (x >= b.x[0] && x <= b.x[1] && y >= b.y[0] && y <= b.y[1]) return id;
+  }
+  return null;
+}
+
+function terrainFetch(url, asBuffer){
+  return fetch(url).then(r => {
+    if (!r.ok) throw new Error(r.status + ' ' + url);
+    return asBuffer ? r.arrayBuffer() : r.json();
+  });
+}
+
+// Renvoie l'altitude si elle est deja en memoire, sinon lance le chargement
+// et renvoie null ; le rendu est relance quand les donnees arrivent.
+function heightAt(x, y){
+  const mapId = terrainMapFor(x, y);
+  if (!mapId || terrain.failed) return null;
+  const M = terrain.manifest;
+  if (!M) {
+    if (!terrain.pending.has('manifest')) {
+      terrain.pending.set('manifest', terrainFetch(TERRAIN_BASE + mapId + '/manifest.json')
+        .then(m => { terrain.manifest = m; terrain.pending.delete('manifest'); render(); })
+        .catch(() => { terrain.failed = true; terrain.pending.delete('manifest'); render(); }));
+    }
+    return null;
+  }
+  const qx = M.globalQuadOffsetX + x * (M.gameUnitsToLandscapeQuadsX || M.gameUnitsToLandscapeQuads);
+  const qy = M.globalQuadOffsetY + y * (M.gameUnitsToLandscapeQuadsY || -M.gameUnitsToLandscapeQuads);
+  const cq = M.chunkQuads;
+  const cx = Math.min(Math.max(Math.floor(qx / cq), M.chunkXMin), M.chunkXMax);
+  const cy = Math.min(Math.max(Math.floor(qy / cq), M.chunkYMin), M.chunkYMax);
+  const key = cx + ',' + cy;
+  const entry = M.chunks[key];
+  if (!entry) return null;
+  const chunk = terrain.chunks.get(key);
+  if (!chunk) {
+    if (!terrain.pending.has(key)) {
+      terrain.pending.set(key, terrainFetch(TERRAIN_BASE + mapId + '/' + entry.file, true)
+        .then(buf => { terrain.chunks.set(key, new DataView(buf)); terrain.pending.delete(key); render(); })
+        .catch(() => { terrain.pending.delete(key); }));
+    }
+    return null;
+  }
+  const side = M.verticesPerSide, maxV = side - 1;
+  const lx = Math.min(Math.max(qx - cx * cq, 0), cq), ly = Math.min(Math.max(qy - cy * cq, 0), cq);
+  const x0 = Math.min(Math.floor(lx), maxV), y0 = Math.min(Math.floor(ly), maxV);
+  const x1 = Math.min(x0 + 1, maxV), y1 = Math.min(y0 + 1, maxV);
+  const fx = lx - x0, fy = ly - y0;
+  const dec = raw => M.worldZOffsetMeters +
+    (entry.minLocalZ + raw / 65535 * (entry.maxLocalZ - entry.minLocalZ)) * M.worldZScaleMetersPerLocalUnit;
+  const z = (xx, yy) => dec(chunk.getUint16((yy * side + xx) * 2, true));
+  return (z(x0, y0) * (1 - fx) + z(x1, y0) * fx) * (1 - fy) + (z(x0, y1) * (1 - fx) + z(x1, y1) * fx) * fy;
 }
 
 // Resolution de reglage : azimut au degre, portee par crans d'environ 25 m.
@@ -739,6 +854,21 @@ function renderSolutions(){
     const s = solve(b, aim, scale);
     const d = dialable(s.distance_m, s.azimuth_deg, state.terrainCurve);
     const status = rangeStatus(s.distance_m);
+
+    // Elevation a composer d'apres la table communautaire, et denivele si le
+    // champ d'altitude est active. Les deux sont des informations de recoupement.
+    const mHigh = milsFor(s.distance_m, 'high');
+    const mLow = milsFor(s.distance_m, 'low');
+    const milLine = mHigh !== null
+      ? T().mils(fmt(mHigh), T().arcHigh) + (mLow !== null ? ' · ' + T().mils(fmt(mLow), T().arcLow) : '')
+      : '';
+    let dzLine = '';
+    if (state.terrain) {
+      const zb = heightAt(b.x, b.y), zt = heightAt(aim.x, aim.y);
+      if (terrain.failed) dzLine = '';
+      else if (zb === null || zt === null) dzLine = terrainMapFor(b.x, b.y) ? T().terrainLoading : T().terrainOut;
+      else dzLine = T().dz((zt - zb >= 0 ? '+' : '') + fmt(zt - zb));
+    }
     const statusLine =
       status === 'tooClose'    ? '<div class="warn">' + T().tooClose(fmt(SPH2.minRange)) + '</div>' :
       status === 'outOfRange'  ? '<div class="warn">' + T().outOfRange(fmt(SPH2.maxRange)) + '</div>' :
@@ -768,6 +898,8 @@ function renderSolutions(){
         '<div class="s">' + T().cardinals[s.cardinal_idx] + ' · ' +
           T().perDegree(fmt(d.azimuth_step_m * 2)) + '</div>' +
       '</div>' +
+      ((milLine || dzLine)
+        ? '<div class="info">' + [milLine, dzLine].filter(Boolean).join(' &nbsp;·&nbsp; ') + '</div>' : '') +
       (n ? '<div class="corr">' + T().corrLine(n, fmt(aim.x, 2), fmt(aim.y, 2)) + '</div>' : '') +
       statusLine;
 
@@ -989,6 +1121,10 @@ function render(){
   $('curve').textContent = state.terrainCurve ? T().curveOn : T().curveOff;
   $('curve').style.color = state.terrainCurve ? 'var(--accent)' : '';
   $('curve').style.borderColor = state.terrainCurve ? 'var(--accent-dim)' : '';
+  $('terrain').textContent = state.terrain ? T().terrainOn : T().terrainOff;
+  $('terrain').style.color = state.terrain ? 'var(--accent)' : '';
+  $('terrain').style.borderColor = state.terrain ? 'var(--accent-dim)' : '';
+  $('terrainErr').textContent = state.terrain && terrain.failed ? T().terrainErr : '';
   renderBatteries();
   renderMissionTabs();
 
@@ -1065,6 +1201,11 @@ $('order').addEventListener('click', () => {
 });
 $('curve').addEventListener('click', () => {
   state.terrainCurve = !state.terrainCurve;
+  persist(); render();
+});
+$('terrain').addEventListener('click', () => {
+  state.terrain = !state.terrain;
+  terrain.failed = false;
   persist(); render();
 });
 $('lang').addEventListener('click', () => {

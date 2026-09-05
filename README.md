@@ -32,15 +32,21 @@ and the order does not matter.
 Community measurements ([wardogshub](https://wardogshub.gg/blog/how-to-use-artillery-in-wardogs/))
 put the SPH-2 at 10 MOA of dispersion (±3 m at 1 km, ±8 m at 2.6 km), a
 780–2629 m envelope, high arc only below ~1181 m, and an arc turnover past
-~2625 m where the table flattens. Solutions flag all of these.
+~2625 m where the table flattens. Solutions flag all of these, and show the
+elevation in mils from the community firing table for cross-checking against
+the in-game sight.
 
-The game's firing tables assume gun and target at the same height: firing
-uphill falls short, downhill carries long, and the error grows with range.
-That is what the **terrain offset** toggle in Settings encodes — a curve
-measured on 05/09 from x96/y109 firing south (−1.5 % at 2 km, −3.7 % at
-2.6 km). It is only valid for that position, so it is **off by default**; the
-right general tool is a ranging round followed by the impact log. Proper a
-priori correction would need the map heightmaps, which this tool does not have.
+**Heights (ΔZ).** Optional, off by default. Loads the Bakurani heightfield
+(2 m mesh, 0.5 MB chunks on demand) from
+[wardogs-artillery.com](https://wardogs-artillery.com/) by Apollyon — thanks —
+and shows target − battery height on each solution. Information only: on our
+12 calibration shots the range deficit correlates with ΔZ (r = −0.68) but is
+2–3× smaller than a flat-table model predicts, so the tool does not correct
+automatically. Neither does the community calculator.
+
+**Terrain offset.** A curve measured on 05/09 from x96/y109 firing south. Only
+valid there; off by default. The general tool is a ranging round followed by
+the impact log.
 
 Output is rounded to what is actually dialable: azimuth to the degree, range in
 25 m steps. `python calibrate.py` re-runs the calibration analysis.
