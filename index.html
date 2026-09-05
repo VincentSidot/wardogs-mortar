@@ -98,7 +98,7 @@
           <div class="sub" id="distPts">&nbsp;</div>
         </div>
         <div class="readout">
-          <div class="k">Azimut</div>
+          <div class="k">Azimut à composer</div>
           <div class="v"><span id="az">&ndash;&ndash;&ndash;</span><span class="u">&deg;</span></div>
           <div class="sub" id="azMils">&nbsp;</div>
         </div>
@@ -211,6 +211,24 @@ function dialRange(groundM){
     }
   }
   return groundM;
+}
+
+// Resolution de reglage de la piece : azimut au degre, portee par crans
+// de ~25 m (un cran de 10 mils vaut 24 a 30 m sur le viseur SPH-2).
+const DIAL_AZIMUTH_STEP_DEG = 1;
+const DIAL_RANGE_STEP_M = 25;
+
+function dialable(groundM, azimuthDeg){
+  const exact = dialRange(groundM);
+  const rangeDialed = Math.round(exact / DIAL_RANGE_STEP_M) * DIAL_RANGE_STEP_M;
+  const azDialed = ((Math.round(azimuthDeg / DIAL_AZIMUTH_STEP_DEG) * DIAL_AZIMUTH_STEP_DEG) % 360 + 360) % 360;
+  return {
+    range_dialed: rangeDialed,
+    range_exact: exact,
+    azimuth_dialed: azDialed,
+    azimuth_step_m: (DIAL_AZIMUTH_STEP_DEG / 2) * Math.PI / 180 * groundM,
+    correction_below_step: Math.abs(exact - groundM) < DIAL_RANGE_STEP_M / 2
+  };
 }
 
 // Mode inverse : ou tombe un obus tire a cette distance et cet azimut ?
@@ -368,17 +386,20 @@ function render(){
 
   const act = results.find(r => r.id === state.activeId) || results[0];
   if (act) {
-    const dial = dialRange(act.distance_m);
-    $('dist').textContent = fmt(dial);
-    $('distPts').innerHTML = fmt(act.distance_m) + ' m au sol · correction ' +
-      (dial >= act.distance_m ? '+' : '') + fmt(dial - act.distance_m) + ' m · ' +
-      fmt(act.distance_pts, 2) + ' pt' +
+    const d = dialable(act.distance_m, act.azimuth_deg);
+    $('dist').textContent = fmt(d.range_dialed);
+    $('distPts').innerHTML = fmt(act.distance_m) + ' m au sol' +
+      (d.correction_below_step
+        ? ' · correction sous le pas de réglage'
+        : ' · correction balistique ' + (d.range_exact >= act.distance_m ? '+' : '') +
+          fmt(d.range_exact - act.distance_m) + ' m') +
       (act.distance_m > EFFECTIVE_MAX_RANGE_M
         ? '<br><span style="color:var(--hot)">au-delà de la portée utile (~' +
           fmt(EFFECTIVE_MAX_RANGE_M) + ' m) : la pièce sature</span>'
         : '');
-    $('az').textContent = fmt(act.azimuth_deg, 1);
-    $('azMils').textContent = fmt(act.azimuth_mils) + ' mils (6400) · ' + act.cardinal;
+    $('az').textContent = fmt(d.azimuth_dialed);
+    $('azMils').innerHTML = fmt(act.azimuth_deg, 1) + '° exact · ' + act.cardinal +
+      "<br>1° d'écart = " + fmt(d.azimuth_step_m * 2) + " m à cette portée";
   } else {
     $('dist').textContent = '––––';
     $('distPts').innerHTML = '&nbsp;';

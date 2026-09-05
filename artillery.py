@@ -132,3 +132,35 @@ def dial_range(ground_m, table=RANGE_CALIBRATION):
             t = (ground_m - r0) / (r1 - r0)
             return ground_m * (f0 + t * (f1 - f0))
     return ground_m
+
+
+# Resolution de reglage de la piece, mesuree sur le viseur SPH-2 :
+# l'azimut se compose au degre, et un cran de 10 mils vaut 24 a 30 m de portee.
+DIAL_AZIMUTH_STEP_DEG = 1
+DIAL_RANGE_STEP_M = 25
+
+
+def dialable(ground_m, azimuth_deg):
+    """Traduit une solution exacte en valeurs reellement composables.
+
+    Renvoie ce qu'il faut afficher sur la piece, et le cout en metres de
+    chaque arrondi : au-dela de 2 km, l'arrondi de l'azimut au degre pese
+    plus lourd que la correction balistique.
+    """
+    exact_range = dial_range(ground_m)
+    # Arrondi au demi superieur, comme Math.round en JavaScript : les deux
+    # implementations doivent donner le meme cran, y compris sur les .5 exacts
+    # que l'arrondi bancaire de Python trancherait dans l'autre sens.
+    range_dialed = math.floor(exact_range / DIAL_RANGE_STEP_M + 0.5) * DIAL_RANGE_STEP_M
+    az_dialed = math.floor(azimuth_deg / DIAL_AZIMUTH_STEP_DEG + 0.5) * DIAL_AZIMUTH_STEP_DEG % 360
+
+    return {
+        "range_dialed": range_dialed,
+        "range_exact": exact_range,
+        "range_loss_m": abs(range_dialed - exact_range),
+        "azimuth_dialed": az_dialed,
+        "azimuth_loss_m": abs(math.radians(azimuth_deg - az_dialed)) * ground_m,
+        # Un demi-pas d'azimut, le pire cas de l'arrondi, en metres au sol.
+        "azimuth_step_m": math.radians(DIAL_AZIMUTH_STEP_DEG / 2) * ground_m,
+        "correction_below_step": abs(exact_range - ground_m) < DIAL_RANGE_STEP_M / 2,
+    }

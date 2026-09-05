@@ -14,11 +14,30 @@ n'est necessaire. Double-clic sur `index.html`, ou hebergement statique
 - Azimut 0 = nord, sens horaire. Affiche aussi en mils OTAN (6400), a reporter
   sur le compas en haut du viseur ; la distance se reporte sur l'echelle RNG.
 
+## Calibration
+
+La page ne sort pas la distance geometrique mais **la valeur a composer sur la
+piece**, corrigee de deux choses mesurees sur le terrain (12 coups, SPH-2,
+voir `calibrate.py`) :
+
+- **Deficit de portee.** Les obus tombent court, d'un ecart qui s'accelere avec
+  la distance : nul a 800 m, -1,2 % a 1400 m, -1,5 % a 2000 m, -3,7 % a 2600 m.
+- **Saturation.** Au-dela de ~2500 m au sol, afficher plus n'allonge plus le
+  tir ; la page le signale.
+
+Les valeurs sont arrondies a ce qui est reellement reglable : azimut au degre,
+portee par crans de 25 m (un cran de 10 mils vaut 24 a 30 m sur le viseur).
+Le sous-titre rappelle ce que coute 1 degre d'ecart a la portee courante --
+au-dela de 2 km, cet arrondi pese plus lourd que la correction balistique.
+
+En revanche l'azimut n'a **aucun** decalage systematique : sur 12 coups,
+moyenne -0,5 deg sans signe constant. La convention de la grille est exacte.
+
 ## Les trois outils
 
 **Solution de tir.** Position batterie (memorisee entre les sessions) + cible
--> distance et azimut. Les cibles s'empilent dans une liste ; un clic sur une
-ligne la remet en grand et sur la rose des vents.
+-> portee a composer et azimut. Les cibles s'empilent dans une liste ; un clic
+sur une ligne la remet en grand et sur la rose des vents.
 
 **Reglage sur impact observe.** L'obus est tombe a cote : entre les coordonnees
 de l'impact, la page vise `T + (T - I)` et sort la solution corrigee. Ca annule
