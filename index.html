@@ -93,7 +93,7 @@
 
       <div class="solution">
         <div class="readout">
-          <div class="k">Distance</div>
+          <div class="k">Portée à afficher</div>
           <div class="v"><span id="dist">&ndash;&ndash;&ndash;&ndash;</span><span class="u"> m</span></div>
           <div class="sub" id="distPts">&nbsp;</div>
         </div>
@@ -192,6 +192,25 @@ function adjust(gun, target, impact, mpp){
     corrected: solve(gun, aim, mpp),
     original: solve(gun, target, mpp)
   };
+}
+
+// Correction balistique mesuree (voir artillery.py / calibrate.py) :
+// la portee affichee sur la piece tombe court, d'autant plus qu'elle est longue.
+const RANGE_CALIBRATION = [[800, 1.0013], [1400, 1.0123], [2000, 1.0155], [2600, 1.0388]];
+const EFFECTIVE_MAX_RANGE_M = 2500;
+
+function dialRange(groundM){
+  const t = RANGE_CALIBRATION;
+  if (groundM <= t[0][0]) return groundM * t[0][1];
+  if (groundM >= t[t.length - 1][0]) return groundM * t[t.length - 1][1];
+  for (let i = 0; i < t.length - 1; i++) {
+    const [r0, f0] = t[i], [r1, f1] = t[i + 1];
+    if (groundM >= r0 && groundM <= r1) {
+      const k = (groundM - r0) / (r1 - r0);
+      return groundM * (f0 + k * (f1 - f0));
+    }
+  }
+  return groundM;
 }
 
 // Mode inverse : ou tombe un obus tire a cette distance et cet azimut ?
@@ -349,9 +368,15 @@ function render(){
 
   const act = results.find(r => r.id === state.activeId) || results[0];
   if (act) {
-    $('dist').textContent = fmt(act.distance_m);
-    $('distPts').textContent = fmt(act.distance_pts, 2) + ' pt · E ' + fmt(act.d_east_m) +
-                               ' m · N ' + fmt(act.d_north_m) + ' m';
+    const dial = dialRange(act.distance_m);
+    $('dist').textContent = fmt(dial);
+    $('distPts').innerHTML = fmt(act.distance_m) + ' m au sol · correction ' +
+      (dial >= act.distance_m ? '+' : '') + fmt(dial - act.distance_m) + ' m · ' +
+      fmt(act.distance_pts, 2) + ' pt' +
+      (act.distance_m > EFFECTIVE_MAX_RANGE_M
+        ? '<br><span style="color:var(--hot)">au-delà de la portée utile (~' +
+          fmt(EFFECTIVE_MAX_RANGE_M) + ' m) : la pièce sature</span>'
+        : '');
     $('az').textContent = fmt(act.azimuth_deg, 1);
     $('azMils').textContent = fmt(act.azimuth_mils) + ' mils (6400) · ' + act.cardinal;
   } else {

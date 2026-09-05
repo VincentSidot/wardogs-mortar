@@ -23,12 +23,23 @@ import artillery
 GUN = (96.45, 109.35)
 
 # (azimut affiche, portee affichee en m, impact_x, impact_y)
-# Serie du 2026-09-05, SPH-2, quatre coups sans deplacement.
+# SPH-2, 2026-09-05, deux series sans deplacement depuis la meme position.
+# Serie 1 : eventail d'azimuts a portee constante -> valide la convention.
+# Serie 2 : balayage de portee sur deux azimuts   -> mesure le deficit.
 SHOTS = [
     (170, 2000, 99.99, 90.96),
     (200, 2000, 89.71, 90.74),
     (230, 2000, 81.43, 96.89),
     (200, 1200, 92.75, 98.23),
+
+    (200,  800, 94.10, 101.71),
+    (200, 1400, 91.99,  96.16),
+    (200, 2000, 90.01,  90.64),
+    (200, 2600, 88.00,  85.86),
+    (230,  800, 90.30, 104.25),
+    (230, 1400, 85.87, 100.58),
+    (230, 2000, 81.26,  96.96),
+    (230, 2600, 77.06,  93.41),
 ]
 
 

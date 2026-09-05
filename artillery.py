@@ -99,3 +99,36 @@ def project(gun, distance_m, azimuth_deg, meters_per_point=METERS_PER_POINT):
         "y": gy + r * math.cos(a),
         "distance_pts": r,
     }
+
+
+# Courbe de correction balistique, mesuree sur SPH-2 le 2026-09-05.
+# Deux series, 12 coups depuis une position fixe : la portee affichee sur la
+# piece tombe systematiquement court, d'un deficit qui s'accelere avec la
+# distance. Chaque entree est (portee au sol visee, facteur a appliquer).
+RANGE_CALIBRATION = [
+    (800, 1.0013),
+    (1400, 1.0123),
+    (2000, 1.0155),
+    (2600, 1.0388),
+]
+
+# Au-dela, la piece sature : afficher plus n'allonge plus le tir.
+EFFECTIVE_MAX_RANGE_M = 2500
+
+
+def dial_range(ground_m, table=RANGE_CALIBRATION):
+    """Portee a afficher sur la piece pour toucher a `ground_m` au sol.
+
+    Interpolation lineaire entre les points mesures, extrapolation plate
+    au-dela des bornes : hors du domaine calibre, mieux vaut ne rien inventer.
+    """
+    if ground_m <= table[0][0]:
+        return ground_m * table[0][1]
+    if ground_m >= table[-1][0]:
+        return ground_m * table[-1][1]
+
+    for (r0, f0), (r1, f1) in zip(table, table[1:]):
+        if r0 <= ground_m <= r1:
+            t = (ground_m - r0) / (r1 - r0)
+            return ground_m * (f0 + t * (f1 - f0))
+    return ground_m
