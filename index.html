@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calcul artillerie</title>
+<style>
+  :root{
+    --bg:#12140f; --panel:#1b1e17; --panel-2:#222619; --line:#333827;
+    --ink:#e8ead9; --dim:#8f9680; --accent:#c9d64f; --hot:#e2703a;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+       background-image:radial-gradient(circle at 50% 0%,#1c2016 0%,#12140f 60%);
+       min-height:100vh}
+  header{display:flex;align-items:baseline;gap:12px;padding:18px 20px 10px;
+         border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:16px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+  header small{color:var(--dim);font-family:var(--mono);letter-spacing:.05em}
+  main{max-width:1000px;margin:0 auto;padding:20px;display:grid;gap:18px;
+       grid-template-columns:minmax(0,1fr) 280px}
+  @media(max-width:820px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px}
+  .panel h2{margin:0 0 12px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .coords{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  label{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+        color:var(--dim);margin-bottom:4px}
+  input{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;
+        color:var(--ink);font-family:var(--mono);font-size:18px;padding:8px 10px;width:110px}
+  input:focus{outline:none;border-color:var(--accent)}
+  input.wide{width:150px}
+  button{background:var(--accent);color:#1a1c14;border:0;border-radius:4px;
+         font:600 12px/1 system-ui;letter-spacing:.1em;text-transform:uppercase;
+         padding:12px 16px;cursor:pointer}
+  button:hover{filter:brightness(1.1)}
+  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+  button.ghost:hover{color:var(--ink);border-color:var(--dim);filter:none}
+  .hint{color:var(--dim);font-size:12px;margin-top:10px}
+
+  .solution{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:4px}
+  .readout{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:14px 16px}
+  .readout .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .readout .v{font-family:var(--mono);font-size:40px;line-height:1.1;color:var(--accent);
+              font-variant-numeric:tabular-nums}
+  .readout .u{font-size:16px;color:var(--dim)}
+  .readout .sub{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:2px}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+  th{text-align:left;font:500 10px/1 system-ui;letter-spacing:.12em;text-transform:uppercase;
+     color:var(--dim);padding:0 8px 8px 0}
+  td{padding:7px 8px 7px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  tr.active td{background:#252a1b}
+  tr[data-id]{cursor:pointer}
+  .del{background:none;border:0;color:var(--dim);cursor:pointer;font-size:15px;padding:0 4px}
+  .del:hover{color:var(--hot)}
+  .empty{color:var(--dim);font-size:12px;padding:12px 0}
+  .err{color:var(--hot);font-size:12px;margin-top:8px;min-height:16px}
+  aside .panel{position:sticky;top:20px}
+  .compass{display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Calcul artillerie</h1>
+  <small>1 pt = 100 m &middot; azimut 0 = nord, sens horaire</small>
+</header>
+
+<main>
+  <div>
+    <section class="panel">
+      <h2>Position batterie</h2>
+      <div class="coords">
+        <div class="f-x"><label for="gx">X</label><input id="gx" inputmode="decimal" placeholder="100.0"></div>
+        <div class="f-y"><label for="gy">Y</label><input id="gy" inputmode="decimal" placeholder="60.0"></div>
+        <div class="f-end"><label for="scale">M&egrave;tres / point</label><input id="scale" inputmode="decimal" value="100"></div>
+        <div class="f-end"><label for="order">Ordre de saisie</label>
+          <button id="order" class="ghost" style="padding:11px 14px">X puis Y</button></div>
+      </div>
+      <p class="hint" id="pasteHint">Conserv&eacute;e entre les sessions. Tu peux coller <code>100.4 60.2</code> dans le premier champ, le second se remplit tout seul.</p>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <h2>Cible</h2>
+      <div class="coords">
+        <div class="f-x"><label for="tx">X</label><input id="tx" inputmode="decimal" placeholder="102.3"></div>
+        <div class="f-y"><label for="ty">Y</label><input id="ty" inputmode="decimal" placeholder="62.1"></div>
+        <div class="f-end"><label for="tl">Nom (option)</label><input id="tl" class="wide" placeholder="MG nord"></div>
+        <button id="add" class="f-end">Calculer</button>
+      </div>
+      <div class="err" id="err"></div>
+
+      <div class="solution">
+        <div class="readout">
+          <div class="k">Distance</div>
+          <div class="v"><span id="dist">&ndash;&ndash;&ndash;&ndash;</span><span class="u"> m</span></div>
+          <div class="sub" id="distPts">&nbsp;</div>
+        </div>
+        <div class="readout">
+          <div class="k">Azimut</div>
+          <div class="v"><span id="az">&ndash;&ndash;&ndash;</span><span class="u">&deg;</span></div>
+          <div class="sub" id="azMils">&nbsp;</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <h2>R&eacute;glage sur impact observ&eacute;</h2>
+      <div class="coords">
+        <div class="f-x"><label for="ix">Impact X</label><input id="ix" inputmode="decimal" placeholder="74.83"></div>
+        <div class="f-y"><label for="iy">Impact Y</label><input id="iy" inputmode="decimal" placeholder="74.78"></div>
+        <button id="adjust" class="f-end">Corriger</button>
+        <button id="resetAdjust" class="ghost f-end">Annuler</button>
+      </div>
+      <p class="hint">O&ugrave; l'obus est r&eacute;ellement tomb&eacute;, pour la cible s&eacute;lectionn&eacute;e.
+        La correction annule l'erreur syst&eacute;matique sans avoir &agrave; en conna&icirc;tre la cause.</p>
+      <div id="adjustOut"></div>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <h2>Mode inverse &mdash; v&eacute;rifier un tir</h2>
+      <div class="coords">
+        <div><label for="pd">Distance (m)</label><input id="pd" inputmode="decimal" placeholder="1900"></div>
+        <div><label for="pa">Azimut (&deg;)</label><input id="pa" inputmode="decimal" placeholder="353"></div>
+        <button id="project">O&ugrave; &ccedil;a tombe ?</button>
+      </div>
+      <p class="hint">Entre ce que tu as r&eacute;ellement affich&eacute; sur la pi&egrave;ce : l'app te dit
+        quelle coordonn&eacute;e ce tir vise depuis la position batterie. Si &ccedil;a ne tombe pas sur ta
+        cible, c'est la position batterie qui est p&eacute;rim&eacute;e.</p>
+      <div id="projectOut"></div>
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <h2>Cibles enregistr&eacute;es</h2>
+      <table>
+        <thead><tr><th>Cible</th><th>Coord.</th><th>Dist.</th><th>Azimut</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="noTargets">Aucune cible pour l'instant.</div>
+      <button class="ghost" id="clear" style="margin-top:12px">Tout effacer</button>
+    </section>
+  </div>
+
+  <aside>
+    <section class="panel">
+      <h2>Rose des vents</h2>
+      <svg class="compass" id="compass" viewBox="0 0 240 240" width="240" height="240"></svg>
+    </section>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  load(){ try { return JSON.parse(localStorage.getItem('artillerie') || '{}'); } catch (e) { return {}; } },
+  save(d){ try { localStorage.setItem('artillerie', JSON.stringify(d)); } catch (e) {} }
+};
+
+let state = Object.assign({ gun:{x:'', y:''}, scale:100, targets:[], activeId:null }, store.load());
+let results = [];
+
+// --- Moteur de calcul (miroir de artillery.py, pour tourner sans serveur) ---
+const CARDINALS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                   'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+
+function cardinal(az){ return CARDINALS[Math.round(((az % 360) + 360) % 360 / 22.5) % 16]; }
+
+// X croit vers l'est, Y vers le nord. Azimut 0 = nord, sens horaire.
+function solve(gun, target, mpp){
+  const dE = (target.x - gun.x) * mpp;
+  const dN = (target.y - gun.y) * mpp;
+  const distance = Math.hypot(dE, dN);
+  const azimuth = ((Math.atan2(dE, dN) * 180 / Math.PI) % 360 + 360) % 360;
+  return {
+    distance_m: distance,
+    distance_pts: distance / mpp,
+    azimuth_deg: azimuth,
+    azimuth_mils: azimuth * 6400 / 360,
+    d_east_m: dE,
+    d_north_m: dN,
+    cardinal: cardinal(azimuth)
+  };
+}
+
+// Reglage : on vise T + (T - I) pour annuler l'ecart systematique observe.
+function adjust(gun, target, impact, mpp){
+  const aim = { x: 2 * target.x - impact.x, y: 2 * target.y - impact.y };
+  return {
+    offset: solve(impact, target, mpp),
+    aim_point: aim,
+    corrected: solve(gun, aim, mpp),
+    original: solve(gun, target, mpp)
+  };
+}
+
+// Mode inverse : ou tombe un obus tire a cette distance et cet azimut ?
+function project(gun, distance_m, azimuth_deg, mpp){
+  const r = distance_m / mpp;
+  const a = azimuth_deg * Math.PI / 180;
+  return { x: gun.x + r * Math.sin(a), y: gun.y + r * Math.cos(a), distance_pts: r };
+}
+
+function persist(){
+  state.gun = { x: $('gx').value, y: $('gy').value };
+  state.scale = $('scale').value;
+  store.save(state);
+}
+
+// Ordre de saisie : le jeu affiche parfois Y avant X.
+function yFirst(){ return !!state.yFirst; }
+
+function applyOrder(){
+  const on = yFirst();
+  document.querySelectorAll('.f-y').forEach(el => { el.style.order = on ? 0 : 1; });
+  document.querySelectorAll('.f-x').forEach(el => { el.style.order = on ? 1 : 0; });
+  document.querySelectorAll('.f-end').forEach(el => { el.style.order = 2; });
+  $('order').textContent = on ? 'Y puis X' : 'X puis Y';
+  $('pasteHint').innerHTML = "Conservée entre les sessions. Colle <code>x90.37, y44.35</code> " +
+    "dans l'un ou l'autre champ : les étiquettes x/y sont reconnues et l'ordre n'a pas " +
+    "d'importance. Sans étiquette, <code>" + (on ? '60.2 100.4' : '100.4 60.2') +
+    "</code> suit l'ordre affiché.";
+}
+$('order').addEventListener('click', () => {
+  state.yFirst = !state.yFirst;
+  applyOrder();
+  persist();
+});
+
+// Collage d'une paire dans un seul champ. Deux formes acceptees :
+//   "x90.37, y44.35"  -> etiquetee, l'ordre n'a aucune importance
+//   "90.37 44.35"     -> positionnelle, suit l'ordre de saisie affiche
+function splitPaste(changed, xField, yField){
+  const src = changed.value.trim();
+  if (!src) return;
+
+  const labelled = src.match(/x\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)/i);
+  const labelledY = src.match(/y\s*[:=]?\s*(-?\d+(?:[.,]\d+)?)/i);
+  if (labelled && labelledY) {
+    xField.value = labelled[1].replace(',', '.');
+    yField.value = labelledY[1].replace(',', '.');
+    return;
+  }
+
+  const m = src.split(/[\s,;/|]+/).filter(v => v !== '');
+  if (m.length === 2) {
+    const first = yFirst() ? yField : xField;
+    const second = yFirst() ? xField : yField;
+    first.value = m[0];
+    second.value = m[1];
+  }
+}
+['gx', 'gy'].forEach(id => $(id).addEventListener('change', e => {
+  splitPaste(e.target, $('gx'), $('gy')); persist(); recompute();
+}));
+['tx', 'ty'].forEach(id => $(id).addEventListener('change', e => {
+  splitPaste(e.target, $('tx'), $('ty'));
+}));
+
+function num(el){
+  const v = parseFloat(String(el.value).replace(',', '.'));
+  return Number.isFinite(v) ? v : null;
+}
+
+function recompute(){
+  const gx = num($('gx')), gy = num($('gy'));
+  if (gx === null || gy === null) { results = []; render(); return; }
+  const gun = { x: gx, y: gy };
+  const mpp = num($('scale')) || 100;
+  results = state.targets.map(t => Object.assign(
+    solve(gun, { x: t.x, y: t.y }, mpp), { id: t.id, label: t.label }));
+  render();
+}
+
+function fail(msg){ $('err').textContent = msg; }
+
+function focusFirstTargetField(){
+  const f = yFirst() ? $('ty') : $('tx');
+  f.focus();
+  f.select();
+}
+
+function addTarget(){
+  const gx = num($('gx')), gy = num($('gy'));
+  const tx = num($('tx')), ty = num($('ty'));
+  if (gx === null || gy === null) { fail("Renseigne d'abord la position de la batterie."); return; }
+  if (tx === null || ty === null) { fail('Coordonnées de cible invalides.'); return; }
+  fail('');
+  const t = { id: 't' + Date.now(), x: tx, y: ty, label: $('tl').value.trim() };
+  state.targets.unshift(t);
+  state.activeId = t.id;
+  $('tl').value = '';
+  focusFirstTargetField();
+  persist();
+  recompute();
+}
+
+$('add').addEventListener('click', addTarget);
+['tx', 'ty', 'tl'].forEach(id => {
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') addTarget(); });
+});
+['gx', 'gy', 'scale'].forEach(id => {
+  $(id).addEventListener('input', () => { persist(); recompute(); });
+});
+$('clear').addEventListener('click', () => {
+  state.targets = [];
+  state.activeId = null;
+  persist();
+  recompute();
+});
+
+function fmt(n, d = 0){
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+}
+
+function render(){
+  const rows = $('rows');
+  rows.innerHTML = '';
+  $('noTargets').style.display = results.length ? 'none' : 'block';
+
+  results.forEach(r => {
+    const t = state.targets.find(x => x.id === r.id) || {};
+    const tr = document.createElement('tr');
+    tr.dataset.id = r.id;
+    if (r.id === state.activeId) tr.className = 'active';
+    tr.innerHTML =
+      '<td>' + escapeHtml(r.label || '—') + '</td>' +
+      '<td>' + fmt(t.x, 1) + ' / ' + fmt(t.y, 1) + '</td>' +
+      '<td>' + fmt(r.distance_m) + ' m</td>' +
+      '<td>' + fmt(r.azimuth_deg, 1) + '° <span style="color:var(--dim)">' + r.cardinal + '</span></td>' +
+      '<td style="text-align:right"><button class="del" title="Supprimer">×</button></td>';
+    tr.addEventListener('click', e => {
+      if (e.target.classList.contains('del')) {
+        state.targets = state.targets.filter(x => x.id !== r.id);
+        if (state.activeId === r.id) state.activeId = state.targets.length ? state.targets[0].id : null;
+        persist();
+        recompute();
+      } else {
+        state.activeId = r.id;
+        persist();
+        render();
+      }
+    });
+    rows.appendChild(tr);
+  });
+
+  const act = results.find(r => r.id === state.activeId) || results[0];
+  if (act) {
+    $('dist').textContent = fmt(act.distance_m);
+    $('distPts').textContent = fmt(act.distance_pts, 2) + ' pt · E ' + fmt(act.d_east_m) +
+                               ' m · N ' + fmt(act.d_north_m) + ' m';
+    $('az').textContent = fmt(act.azimuth_deg, 1);
+    $('azMils').textContent = fmt(act.azimuth_mils) + ' mils (6400) · ' + act.cardinal;
+  } else {
+    $('dist').textContent = '––––';
+    $('distPts').innerHTML = '&nbsp;';
+    $('az').textContent = '–––';
+    $('azMils').innerHTML = '&nbsp;';
+  }
+  drawCompass(act);
+}
+
+function drawCompass(act){
+  const c = 120, R = 96;
+  const parts = [
+    '<circle cx="' + c + '" cy="' + c + '" r="' + R + '" fill="#191c14" stroke="#333827"/>',
+    '<circle cx="' + c + '" cy="' + c + '" r="' + (R * 0.55) + '" fill="none" stroke="#282d1e"/>'
+  ];
+  for (let a = 0; a < 360; a += 15) {
+    const long = a % 45 === 0;
+    const r1 = R - (long ? 12 : 6);
+    const rad = (a - 90) * Math.PI / 180;
+    parts.push('<line x1="' + (c + r1 * Math.cos(rad)) + '" y1="' + (c + r1 * Math.sin(rad)) +
+               '" x2="' + (c + R * Math.cos(rad)) + '" y2="' + (c + R * Math.sin(rad)) +
+               '" stroke="' + (long ? '#5c6544' : '#3a4029') + '"/>');
+  }
+  [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'O']].forEach(([a, txt]) => {
+    const rad = (a - 90) * Math.PI / 180, rr = R - 26;
+    parts.push('<text x="' + (c + rr * Math.cos(rad)) + '" y="' + (c + rr * Math.sin(rad) + 4) +
+               '" fill="#8f9680" font-size="12" font-family="monospace" text-anchor="middle">' + txt + '</text>');
+  });
+
+  const maxD = Math.max(1, ...results.map(r => r.distance_m));
+  results.forEach(r => {
+    const rad = (r.azimuth_deg - 90) * Math.PI / 180;
+    const rr = (0.18 + 0.72 * (r.distance_m / maxD)) * R;
+    const on = act && r.id === act.id;
+    parts.push('<circle cx="' + (c + rr * Math.cos(rad)) + '" cy="' + (c + rr * Math.sin(rad)) +
+               '" r="' + (on ? 5 : 3) + '" fill="' + (on ? '#e2703a' : '#5c6544') + '"/>');
+  });
+
+  if (act) {
+    const rad = (act.azimuth_deg - 90) * Math.PI / 180;
+    parts.push('<line x1="' + c + '" y1="' + c + '" x2="' + (c + (R - 8) * Math.cos(rad)) +
+               '" y2="' + (c + (R - 8) * Math.sin(rad)) + '" stroke="#c9d64f" stroke-width="2"/>');
+    parts.push('<text x="' + c + '" y="' + (c + 44) + '" fill="#c9d64f" font-size="15" ' +
+               'font-family="monospace" text-anchor="middle">' + act.azimuth_deg.toFixed(1) + '°</text>');
+  }
+  parts.push('<circle cx="' + c + '" cy="' + c + '" r="4" fill="#c9d64f"/>');
+  $('compass').innerHTML = parts.join('');
+}
+
+// --- Reglage de tir : on vise T + (T - I) pour annuler l'ecart observe ---
+['ix', 'iy'].forEach(id => {
+  $(id).addEventListener('change', e => splitPaste(e.target, $('ix'), $('iy')));
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runAdjust(); });
+});
+$('resetAdjust').addEventListener('click', () => {
+  $('ix').value = '';
+  $('iy').value = '';
+  $('adjustOut').innerHTML = '';
+});
+
+function runAdjust(){
+  const act = results.find(r => r.id === state.activeId) || results[0];
+  const t = act && state.targets.find(x => x.id === act.id);
+  const ix = num($('ix')), iy = num($('iy'));
+  const out = $('adjustOut');
+
+  if (!t) { out.innerHTML = '<div class="err">Ajoute d\'abord une cible.</div>'; return; }
+  if (ix === null || iy === null) { out.innerHTML = '<div class="err">Coordonnées d\'impact invalides.</div>'; return; }
+
+  const d = adjust(
+    { x: num($('gx')), y: num($('gy')) },
+    { x: t.x, y: t.y },
+    { x: ix, y: iy },
+    num($('scale')) || 100
+  );
+
+  const far = d.offset.distance_m > 1500;
+  out.innerHTML =
+    '<div class="solution">' +
+      '<div class="readout"><div class="k">Nouvelle distance</div>' +
+        '<div class="v">' + fmt(d.corrected.distance_m) + '<span class="u"> m</span></div>' +
+        '<div class="sub">' + (d.corrected.distance_m > d.original.distance_m ? '+' : '') +
+          fmt(d.corrected.distance_m - d.original.distance_m) + ' m</div></div>' +
+      '<div class="readout"><div class="k">Nouvel azimut</div>' +
+        '<div class="v">' + fmt(d.corrected.azimuth_deg, 1) + '<span class="u">°</span></div>' +
+        '<div class="sub">' + (d.corrected.azimuth_deg > d.original.azimuth_deg ? '+' : '') +
+          fmt(d.corrected.azimuth_deg - d.original.azimuth_deg, 1) + '° · ' +
+          fmt(d.corrected.azimuth_mils) + ' mils</div></div>' +
+    '</div>' +
+    '<p class="hint">Écart observé : <strong>' + fmt(d.offset.distance_m) + ' m</strong> — depuis l\'impact, ' +
+      'la cible est au <strong>' + d.offset.cardinal + '</strong>. Point de visée corrigé : <code>' +
+      fmt(d.aim_point.x, 2) + ' / ' + fmt(d.aim_point.y, 2) + '</code>.</p>' +
+    (far ? '<div class="err">Écart de plus de 1,5 km : ce n\'est probablement pas une dérive ' +
+           'mais une coordonnée mal relevée. Revérifie la cible avant de corriger.</div>' : '');
+}
+$('adjust').addEventListener('click', runAdjust);
+
+// --- Mode inverse : azimut + portee -> coordonnee visee ---
+function runProject(){
+  const out = $('projectOut');
+  const d = num($('pd')), a = num($('pa'));
+  const gx = num($('gx')), gy = num($('gy'));
+  if (gx === null || gy === null) { out.innerHTML = '<div class="err">Position batterie manquante.</div>'; return; }
+  if (d === null || a === null) { out.innerHTML = '<div class="err">Distance et azimut requis.</div>'; return; }
+
+  const p = project({ x: gx, y: gy }, d, a, num($('scale')) || 100);
+
+  const act = results.find(r => r.id === state.activeId) || results[0];
+  const t = act && state.targets.find(x => x.id === act.id);
+  let ecart = '';
+  if (t) {
+    const dx = (p.x - t.x), dy = (p.y - t.y);
+    const scale = num($('scale')) || 100;
+    ecart = ' &middot; ' + fmt(Math.hypot(dx, dy) * scale) + ' m de la cible sélectionnée';
+  }
+  out.innerHTML = '<div class="readout" style="margin-top:4px"><div class="k">Point vis&eacute;</div>' +
+    '<div class="v" style="font-size:28px">x ' + fmt(p.x, 2) + '<span class="u"> / </span>y ' + fmt(p.y, 2) + '</div>' +
+    '<div class="sub">' + fmt(p.distance_pts, 2) + ' pt' + ecart + '</div></div>';
+}
+$('project').addEventListener('click', runProject);
+['pd', 'pa'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') runProject(); }));
+
+$('gx').value = (state.gun && state.gun.x) || '';
+$('gy').value = (state.gun && state.gun.y) || '';
+$('scale').value = state.scale || 100;
+applyOrder();
+recompute();
+focusFirstTargetField();
+</script>
+</body>
+</html>
