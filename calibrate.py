@@ -20,13 +20,15 @@ import statistics
 import artillery
 
 # Position de tir, identique pour toute la serie.
-GUN = (0.0, 0.0)
+GUN = (96.45, 109.35)
 
 # (azimut affiche, portee affichee en m, impact_x, impact_y)
+# Serie du 2026-09-05, SPH-2, quatre coups sans deplacement.
 SHOTS = [
-    # (0,   2000, 0.0, 0.0),
-    # (90,  2000, 0.0, 0.0),
-    # (180, 2000, 0.0, 0.0),
+    (170, 2000, 99.99, 90.96),
+    (200, 2000, 89.71, 90.74),
+    (230, 2000, 81.43, 96.89),
+    (200, 1200, 92.75, 98.23),
 ]
 
 
@@ -61,19 +63,64 @@ def main():
         print(f"{az:>9} {dist:>7} {ix:>7.2f}/{iy:<7.2f} {s['azimuth_deg']:>11.1f} "
               f"{offset:>+9.1f} {scale:>9.1f}")
 
+    if len(scales) < 2:
+        return
+
     print()
-    if len(scales) >= 2:
-        print(f"echelle   : {statistics.mean(scales):.1f} m/point "
-              f"(dispersion {max(scales) - min(scales):.1f})")
-        print(f"decalage  : {statistics.mean(offsets):+.1f} deg "
-              f"(dispersion {max(offsets) - min(offsets):.1f})")
-        print()
-        if max(scales) - min(scales) > 0.05 * statistics.mean(scales):
-            print("L'echelle varie selon l'azimut : X et Y n'ont pas le meme")
-            print("facteur, ou la portee affichee n'est pas la distance au sol.")
-        if abs(statistics.mean(offsets)) > 1.0:
-            print("Decalage d'azimut systematique : le nord de la piece n'est")
-            print("pas le nord de la grille.")
+    print(f"echelle   : {statistics.mean(scales):.1f} m/point "
+          f"(etendue {max(scales) - min(scales):.1f})")
+    print(f"decalage  : {statistics.mean(offsets):+.1f} deg "
+          f"(etendue {max(offsets) - min(offsets):.1f})")
+
+    # Reference de bruit : deux tirs de meme azimut ne different que par la
+    # dispersion. Sans cette reference, toute variation parait significative.
+    noise = dispersion_baseline()
+    if noise is not None:
+        print(f"dispersion : {noise:.1f} m/point (tirs de meme azimut)")
+
+    print()
+    ax, ay = axis_scales()
+    if ax and ay:
+        gap = abs(statistics.mean(ax) - statistics.mean(ay))
+        print(f"echelle sur X : {statistics.mean(ax):.1f}   "
+              f"sur Y : {statistics.mean(ay):.1f}   ecart {gap:.1f}")
+        if noise is not None and gap > 2 * noise:
+            print("  -> X et Y n'ont pas le meme facteur.")
+        else:
+            print("  -> pas d'anisotropie : l'ecart entre axes reste dans le bruit.")
+
+    if noise is not None and abs(statistics.mean(offsets)) > 1.0:
+        print("Decalage d'azimut systematique : le nord de la piece n'est")
+        print("pas le nord de la grille.")
+
+
+def dispersion_baseline():
+    """Etendue des echelles mesurees parmi les tirs partageant un azimut."""
+    par_azimut = {}
+    for az, dist, ix, iy in SHOTS:
+        pts = artillery.solve(GUN, (ix, iy), meters_per_point=1.0)["distance_m"]
+        if pts:
+            par_azimut.setdefault(az, []).append(dist / pts)
+    etendues = [max(v) - min(v) for v in par_azimut.values() if len(v) > 1]
+    return statistics.mean(etendues) if etendues else None
+
+
+def axis_scales():
+    """Echelle deduite separement de la composante est et de la composante nord.
+
+    Une composante trop faible est ecartee : diviser par un petit deplacement
+    amplifie le bruit de lecture au point de rendre le chiffre inexploitable.
+    """
+    sx, sy = [], []
+    for az, dist, ix, iy in SHOTS:
+        de = dist * math.sin(math.radians(az))
+        dn = dist * math.cos(math.radians(az))
+        px, py = ix - GUN[0], iy - GUN[1]
+        if abs(px) > 2:
+            sx.append(de / px)
+        if abs(py) > 2:
+            sy.append(dn / py)
+    return sx, sy
 
 
 if __name__ == "__main__":
