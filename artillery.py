@@ -221,9 +221,9 @@ def dialable(ground_m, azimuth_deg, use_curve=False):
 # applique a toute cible tiree depuis la meme position. Miroir de index.html.
 #
 #   erreur de portee  = c + s(D) * (alpha*cos A + beta*sin A)
-#   erreur laterale   = delta * D
+#   erreur laterale   = D * (delta + kappa_s*sin A + kappa_c*cos A)   (devers du chassis)
 MODEL_PRIOR = {"sigma_r": 12.0, "sigma_l": 12.0, "tau_c": 40.0, "tau_tilt": 20.0,
-               "tau_delta": math.pi / 180}
+               "tau_delta": math.pi / 180, "tau_cant": 2.5 * math.pi / 180}
 
 # Table communautaire (wardogs-artillery.com), arc haut : (portee m, mil).
 SPH2_HIGH = sorted([
@@ -299,19 +299,24 @@ def fit_battery(gun, shots, meters_per_point=METERS_PER_POINT, prior=MODEL_PRIOR
                 n_mat[i][j] += w * x[i] * x[j]
     c, alpha, beta = _solve3(n_mat, v) if rows else (0.0, 0.0, 0.0)
 
-    nd = 1 / p["tau_delta"] ** 2
-    vd = 0.0
+    nl = [[1 / p["tau_delta"] ** 2, 0, 0], [0, 1 / p["tau_cant"] ** 2, 0], [0, 0, 1 / p["tau_cant"] ** 2]]
+    vl = [0.0, 0.0, 0.0]
     wl = 1 / p["sigma_l"] ** 2
     for d, a, er, el, sl in rows:
-        nd += wl * d * d
-        vd += wl * d * el
-    delta = vd / nd
+        x = [d, d * math.sin(a), d * math.cos(a)]
+        for i in range(3):
+            vl[i] += wl * x[i] * el
+            for j in range(3):
+                nl[i][j] += wl * x[i] * x[j]
+    delta, kappa_s, kappa_c = _solve3(nl, vl) if rows else (0.0, 0.0, 0.0)
 
     ss = 0.0
     for d, a, er, el, sl in rows:
         pr = c + sl * (alpha * math.cos(a) + beta * math.sin(a))
-        ss += (er - pr) ** 2 + (el - delta * d) ** 2
+        pl = d * (delta + kappa_s * math.sin(a) + kappa_c * math.cos(a))
+        ss += (er - pr) ** 2 + (el - pl) ** 2
     return {"n": len(rows), "c": c, "alpha": alpha, "beta": beta, "delta": delta,
+            "kappa_s": kappa_s, "kappa_c": kappa_c,
             "rms": math.sqrt(ss / (2 * len(rows))) if rows else 0.0}
 
 
@@ -324,7 +329,7 @@ def aim_with_model(gun, target, model, meters_per_point=METERS_PER_POINT):
     for _ in range(3):
         ar = math.radians(a)
         er = model["c"] + range_slope_m_per_mil(d) * (model["alpha"] * math.cos(ar) + model["beta"] * math.sin(ar))
-        el = model["delta"] * d
+        el = d * (model["delta"] + model["kappa_s"] * math.sin(ar) + model["kappa_c"] * math.cos(ar))
         d = want["distance_m"] - er
         a = want["azimuth_deg"] - math.degrees(el / want["distance_m"])
     pt = project(gun, d, a, meters_per_point)

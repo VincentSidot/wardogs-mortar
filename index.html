@@ -212,8 +212,13 @@
              <input id="iy" inputmode="decimal" placeholder="74.78"></div>
         <div class="f-end"><label for="ib" data-i18n="firedBy">Tirée par</label>
              <select id="ib"></select></div>
+        <div class="f-end"><label for="idr" data-i18n="dialedRange">Portée composée</label>
+             <input id="idr" class="small" inputmode="decimal" placeholder="auto"></div>
+        <div class="f-end"><label for="ida" data-i18n="dialedAz">Azimut composé</label>
+             <input id="ida" class="small" inputmode="decimal" placeholder="auto"></div>
         <button id="logShot" class="f-end" data-i18n="logShot">Enregistrer</button>
       </div>
+      <p class="hint" data-i18n-html="dialedHint"></p>
       <div class="err" id="shotErr"></div>
       <table style="margin-top:12px">
         <thead><tr>
@@ -257,6 +262,7 @@
         <div class="f-x"><label for="bx">X</label><input id="bx" class="small" inputmode="decimal" placeholder="96.45"></div>
         <div class="f-y"><label for="by">Y</label><input id="by" class="small" inputmode="decimal" placeholder="109.35"></div>
         <div class="f-end"><label for="bn" data-i18n="nameLabel">Nom</label><input id="bn" class="small"></div>
+        <div class="f-end"><label for="basl" data-i18n="aslLabel">ASL (HUD)</label><input id="basl" class="small" inputmode="decimal" placeholder="82"></div>
         <button id="addBattery" class="small f-end" data-i18n="addBattery">Ajouter</button>
       </div>
       <div class="err" id="batteryErr"></div>
@@ -299,7 +305,7 @@ const $ = id => document.getElementById(id);
 
 // Version affichee dans l'en-tete. A incrementer a chaque livraison notable :
 // majeur = modele de donnees, mineur = fonctionnalite, correctif = le reste.
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 
 /* ============================================================ i18n ==== */
 const I18N = {
@@ -321,9 +327,13 @@ const I18N = {
       'd’azimut, ajustés par moindres carrés régularisés sur <em>tous</em> ses impacts, toutes ' +
       'missions confondues. Un coup de réglage sur une cible corrige donc aussi les autres ' +
       'cibles tirées depuis la même position. Si la pièce bouge, crée une nouvelle batterie.',
-    modelLine: (n, c, tilt, tiltAz, delta, rms) => 'Modèle · ' + n + (n > 1 ? ' impacts' : ' impact') +
-      ' · biais ' + c + ' m · inclin. ' + tilt + ' mil → ' + tiltAz + '° · dérive ' + delta + '°' +
-      (n > 1 ? ' · résidu ±' + rms + ' m' : ''),
+    modelLine: (n, c, tilt, tiltAz, delta, cant, cantAx, rms) => 'Modèle · ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ' · biais ' + c + ' m · inclin. ' + tilt + ' mil → ' + tiltAz + '° · dérive ' + delta + '° · dévers ' +
+      cant + '° axe ' + cantAx + '°' + (n > 1 ? ' · résidu ±' + rms + ' m' : ''),
+    dialedRange:'Portée composée', dialedAz:'Azimut composé',
+    dialedHint:'Laisse « auto » si tu as composé exactement ce que la solution affichait. Sinon, indique ' +
+      'ce que tu as réellement composé : c’est la référence dont le modèle mesure l’écart.',
+    aslLabel:'ASL (HUD)',
     ditherWith: v => 'alterner avec ' + v,
     corrLine: (n, x, y) => 'Visée corrigée sur ' + n + (n > 1 ? ' impacts' : ' impact') +
       ' : ' + x + ' / ' + y,
@@ -347,9 +357,9 @@ const I18N = {
     terrainHint:'<strong>Altitudes</strong> : champ d’altitude de Bakurani (maille 2 m) servi par ' +
       '<a href="https://wardogs-artillery.com/" target="_blank" rel="noopener" style="color:var(--dim)">' +
       'wardogs-artillery.com</a> (Apollyon), chargé à la demande par morceaux de 0,5 Mo. Affiche le ' +
-      'dénivelé cible − batterie sur chaque solution, <em>à titre d’information</em> : on a mesuré que ' +
-      'le déficit de portée suit ΔZ mais 2 à 3 fois moins qu’une table plate ne le prédirait, donc ' +
-      'aucune correction automatique.',
+      'dénivelé cible − batterie sur chaque solution. <strong>Non validé</strong> : les altitudes ne ' +
+      'concordent pas encore avec les lectures ASL du HUD — renseigne l’ASL de chaque batterie que tu ' +
+      'crées, ça servira à recaler la carte. Aucune correction automatique.',
     terrainLoading:'altitudes…', terrainOut:'hors couverture',
     dz: v => 'ΔZ ' + v + ' m',
     mils: (m, arc) => m + ' mil · ' + arc,
@@ -404,9 +414,13 @@ const I18N = {
       'least squares over <em>all</em> its impacts across missions. A ranging round on one target ' +
       'therefore also corrects the other targets fired from the same position. If the gun moves, ' +
       'create a new battery.',
-    modelLine: (n, c, tilt, tiltAz, delta, rms) => 'Model · ' + n + (n > 1 ? ' impacts' : ' impact') +
-      ' · bias ' + c + ' m · tilt ' + tilt + ' mil → ' + tiltAz + '° · drift ' + delta + '°' +
-      (n > 1 ? ' · residual ±' + rms + ' m' : ''),
+    modelLine: (n, c, tilt, tiltAz, delta, cant, cantAx, rms) => 'Model · ' + n + (n > 1 ? ' impacts' : ' impact') +
+      ' · bias ' + c + ' m · tilt ' + tilt + ' mil → ' + tiltAz + '° · drift ' + delta + '° · cant ' +
+      cant + '° axis ' + cantAx + '°' + (n > 1 ? ' · residual ±' + rms + ' m' : ''),
+    dialedRange:'Dialled range', dialedAz:'Dialled azimuth',
+    dialedHint:'Leave “auto” if you dialled exactly what the solution showed. Otherwise enter what ' +
+      'you actually dialled: that is the reference the model measures the miss against.',
+    aslLabel:'ASL (HUD)',
     ditherWith: v => 'alternate with ' + v,
     corrLine: (n, x, y) => 'Aim corrected on ' + n + (n > 1 ? ' impacts' : ' impact') +
       ': ' + x + ' / ' + y,
@@ -430,8 +444,9 @@ const I18N = {
     terrainHint:'<strong>Heights</strong>: Bakurani heightfield (2 m mesh) served by ' +
       '<a href="https://wardogs-artillery.com/" target="_blank" rel="noopener" style="color:var(--dim)">' +
       'wardogs-artillery.com</a> (Apollyon), loaded on demand in 0.5 MB chunks. Shows target − battery ' +
-      'height on each solution, <em>for information</em>: measured range deficit tracks ΔZ but 2–3× ' +
-      'less than a flat table would predict, so no automatic correction.',
+      'height on each solution. <strong>Not validated</strong>: heights do not yet agree with the HUD ' +
+      'ASL readings — enter the ASL of each battery you create, it will be used to re-register the ' +
+      'map. No automatic correction.',
     terrainLoading:'heights…', terrainOut:'outside coverage',
     dz: v => 'ΔZ ' + v + ' m',
     mils: (m, arc) => m + ' mil · ' + arc,
@@ -693,13 +708,18 @@ function dialable(groundM, azimuthDeg, useCurve){
 // applique a toute cible tiree depuis la meme position.
 //
 //   erreur de portee  = c + s(D) * (alpha*cos A + beta*sin A)
-//   erreur laterale   = delta * D
+//   erreur laterale   = D * (delta + kappaS*sin A + kappaC*cos A)
 //
 // c en m ; (alpha, beta) plan d'inclinaison en mils, converti en metres par la
-// sensibilite s(D) de la table ; delta en radians. Moindres carres avec un
-// a priori gaussien (ridge) 'pas d'inclinaison, pas de biais', ce qui rend le
-// modele sage avec un seul impact et precis avec trois sur des azimuts varies.
-const MODEL_PRIOR = { sigmaR: 12, sigmaL: 12, tauC: 40, tauTilt: 20, tauDelta: Math.PI / 180 };
+// sensibilite s(D) de la table ; delta, kappaS, kappaC en radians. Le terme en
+// sin/cos de l'erreur laterale est le devers : un chassis penche devie l'obus
+// d'autant plus qu'on tire perpendiculairement a la pente (mesure au stand le
+// 06/09 : 2,25 deg d'amplitude, residu 0,18 deg, contre 1,56 deg avec une
+// derive constante). Moindres carres avec un a priori gaussien (ridge) 'pas
+// d'inclinaison, pas de biais', ce qui rend le modele sage avec un seul impact
+// et precis avec trois sur des azimuts varies.
+const MODEL_PRIOR = { sigmaR: 12, sigmaL: 12, tauC: 40, tauTilt: 20,
+                      tauDelta: Math.PI / 180, tauCant: 2.5 * Math.PI / 180 };
 
 // Sensibilite de la portee a l'elevation (m/mil) sur l'arc haut, celui du
 // viseur observe. Proche de l'apex elle tend vers zero : l'inclinaison y
@@ -762,23 +782,28 @@ function fitBattery(b, mppv){
   });
   const [c, alpha, beta] = n ? solve3(N, v) : [0, 0, 0];
 
-  let nd = 1 / (P.tauDelta * P.tauDelta), vd = 0;
-  const wl = 1 / (P.sigmaL * P.sigmaL);
-  rows.forEach(r => { nd += wl * r.D * r.D; vd += wl * r.D * r.eL; });
-  const delta = vd / nd;
+  const NL = [[1 / (P.tauDelta * P.tauDelta), 0, 0], [0, 1 / (P.tauCant * P.tauCant), 0], [0, 0, 1 / (P.tauCant * P.tauCant)]];
+  const vl = [0, 0, 0], wl = 1 / (P.sigmaL * P.sigmaL);
+  rows.forEach(r => {
+    const x = [r.D, r.D * Math.sin(r.A), r.D * Math.cos(r.A)];
+    for (let i = 0; i < 3; i++) { vl[i] += wl * x[i] * r.eL; for (let j = 0; j < 3; j++) NL[i][j] += wl * x[i] * x[j]; }
+  });
+  const [delta, kappaS, kappaC] = n ? solve3(NL, vl) : [0, 0, 0];
 
   let ss = 0;
   rows.forEach(r => {
     const pr = c + r.sl * (alpha * Math.cos(r.A) + beta * Math.sin(r.A));
-    ss += (r.eR - pr) * (r.eR - pr) + (r.eL - delta * r.D) * (r.eL - delta * r.D);
+    const pl = r.D * (delta + kappaS * Math.sin(r.A) + kappaC * Math.cos(r.A));
+    ss += (r.eR - pr) * (r.eR - pr) + (r.eL - pl) * (r.eL - pl);
   });
-  return { n: n, c: c, alpha: alpha, beta: beta, delta: delta, rms: n ? Math.sqrt(ss / (2 * n)) : 0 };
+  return { n: n, c: c, alpha: alpha, beta: beta, delta: delta, kappaS: kappaS, kappaC: kappaC,
+           rms: n ? Math.sqrt(ss / (2 * n)) : 0 };
 }
 
 function predictedError(model, D, Adeg){
   const A = Adeg * Math.PI / 180;
   return { eR: model.c + rangeSlopeMPerMil(D) * (model.alpha * Math.cos(A) + model.beta * Math.sin(A)),
-           eL: model.delta * D };
+           eL: D * (model.delta + model.kappaS * Math.sin(A) + model.kappaC * Math.cos(A)) };
 }
 
 // Point de visee : on cherche (D, A) tels que le tir, une fois entache de
@@ -876,10 +901,11 @@ function addBattery(){
   if (x === null || y === null) { $('batteryErr').textContent = T().errCoords; return; }
   $('batteryErr').textContent = '';
   const name = $('bn').value.trim() || (T().batteryPlaceholder + (state.batteries.length + 1));
-  const b = { id: uid('b'), name: name, x: x, y: y };
+  const asl = num($('basl'));
+  const b = { id: uid('b'), name: name, x: x, y: y, asl: asl };
   state.batteries.push(b);
   state.activeBatteryId = b.id;
-  $('bx').value = ''; $('by').value = ''; $('bn').value = '';
+  $('bx').value = ''; $('by').value = ''; $('bn').value = ''; $('basl').value = '';
   persist(); render();
 }
 
@@ -894,7 +920,8 @@ function renderBatteries(){
     el.innerHTML =
       '<span class="swatch" style="background:' + swatchOf(b.id) + '"></span>' +
       '<span class="nm">' + esc(b.name) + '</span>' +
-      '<span class="co">' + fmt(b.x, 2) + ' / ' + fmt(b.y, 2) + '</span>' +
+      '<span class="co">' + fmt(b.x, 2) + ' / ' + fmt(b.y, 2) +
+        (b.asl !== null && b.asl !== undefined ? ' · ASL ' + fmt(b.asl) : '') + '</span>' +
       '<button class="icon-btn" title="' + T().deleteTitle + '">×</button>';
     el.addEventListener('click', e => {
       if (e.target.classList.contains('icon-btn')) {
@@ -1036,7 +1063,10 @@ function renderSolutions(){
              '<br>' + T().modelLine(n, (model.c >= 0 ? '+' : '') + fmt(model.c),
                fmt(Math.hypot(model.alpha, model.beta), 1),
                fmt(((Math.atan2(model.beta, model.alpha) * 180 / Math.PI) % 360 + 360) % 360),
-               (model.delta >= 0 ? '+' : '') + fmt(model.delta * 180 / Math.PI, 2), fmt(model.rms)) +
+               (model.delta >= 0 ? '+' : '') + fmt(model.delta * 180 / Math.PI, 2),
+               fmt(Math.hypot(model.kappaS, model.kappaC) * 180 / Math.PI, 2),
+               fmt(((Math.atan2(-model.kappaC, model.kappaS) * 180 / Math.PI) % 360 + 360) % 360),
+               fmt(model.rms)) +
            '</div>' : '') +
       statusLine;
 
@@ -1068,11 +1098,19 @@ function logShot(){
   // et azimut arrondis au cran affiche. Sinon l'ecart d'arrondi (jusqu'a 12 m
   // et 1/2 degre) entrerait dans le modele comme si c'etait une erreur de la piece.
   const b = battery(bid);
-  const aim = aimFor(m, bid);
-  const sol = solve(b, aim, mpp());
-  const d = dialable(sol.distance_m, sol.azimuth_deg, state.terrainCurve);
-  const dialed = project(b, state.terrainCurve ? sol.distance_m * d.range_dialed / d.range_exact : d.range_dialed,
-                         d.azimuth_dialed, mpp());
+  const dr = num($('idr')), da = num($('ida'));
+  let dialed;
+  if (dr !== null && da !== null) {
+    // L'utilisateur dit ce qu'il a compose : c'est la reference, quoi qu'ait affiche l'app.
+    dialed = project(b, dr, da, mpp());
+  } else {
+    const aim = aimFor(m, bid);
+    const sol = solve(b, aim, mpp());
+    const d = dialable(sol.distance_m, sol.azimuth_deg, state.terrainCurve);
+    dialed = project(b, state.terrainCurve ? sol.distance_m * d.range_dialed / d.range_exact : d.range_dialed,
+                     d.azimuth_dialed, mpp());
+  }
+  $('idr').value = ''; $('ida').value = '';
   m.shots.push({ id: uid('s'), batteryId: bid, x: x, y: y, aimX: dialed.x, aimY: dialed.y });
   $('ix').value = ''; $('iy').value = '';
   persist(); render();
@@ -1322,7 +1360,7 @@ $('delMission').addEventListener('click', () => {
 ['mn', 'mx', 'my'].forEach(id => $(id).addEventListener('input', readMissionFields));
 
 $('logShot').addEventListener('click', logShot);
-['ix', 'iy'].forEach(id => $(id).addEventListener('keydown', e => {
+['ix', 'iy', 'idr', 'ida'].forEach(id => $(id).addEventListener('keydown', e => {
   if (e.key === 'Enter') logShot();
 }));
 $('undoShot').addEventListener('click', () => {
