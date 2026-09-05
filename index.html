@@ -63,42 +63,43 @@
 </head>
 <body>
 <header>
-  <h1>Calcul artillerie</h1>
-  <small>1 pt = 100 m &middot; azimut 0 = nord, sens horaire</small>
+  <h1 data-i18n="appTitle">Calcul artillerie</h1>
+  <small data-i18n="subtitle">1 pt = 100 m &middot; azimut 0 = nord, sens horaire</small>
+  <button id="lang" class="ghost" style="margin-left:auto;padding:6px 12px">EN</button>
 </header>
 
 <main>
   <div>
     <section class="panel">
-      <h2>Position batterie</h2>
+      <h2 data-i18n="batterySection">Position batterie</h2>
       <div class="coords">
         <div class="f-x"><label for="gx">X</label><input id="gx" inputmode="decimal" placeholder="100.0"></div>
         <div class="f-y"><label for="gy">Y</label><input id="gy" inputmode="decimal" placeholder="60.0"></div>
-        <div class="f-end"><label for="scale">M&egrave;tres / point</label><input id="scale" inputmode="decimal" value="100"></div>
-        <div class="f-end"><label for="order">Ordre de saisie</label>
+        <div class="f-end"><label for="scale" data-i18n="metresPerPoint">M&egrave;tres / point</label><input id="scale" inputmode="decimal" value="100"></div>
+        <div class="f-end"><label for="order" data-i18n="inputOrder">Ordre de saisie</label>
           <button id="order" class="ghost" style="padding:11px 14px">X puis Y</button></div>
       </div>
       <p class="hint" id="pasteHint">Conserv&eacute;e entre les sessions. Tu peux coller <code>100.4 60.2</code> dans le premier champ, le second se remplit tout seul.</p>
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h2>Cible</h2>
+      <h2 data-i18n="targetSection">Cible</h2>
       <div class="coords">
         <div class="f-x"><label for="tx">X</label><input id="tx" inputmode="decimal" placeholder="102.3"></div>
         <div class="f-y"><label for="ty">Y</label><input id="ty" inputmode="decimal" placeholder="62.1"></div>
-        <div class="f-end"><label for="tl">Nom (option)</label><input id="tl" class="wide" placeholder="MG nord"></div>
-        <button id="add" class="f-end">Calculer</button>
+        <div class="f-end"><label for="tl" data-i18n="nameOptional">Nom (option)</label><input id="tl" class="wide" placeholder="MG nord"></div>
+        <button id="add" class="f-end" data-i18n="computeBtn">Calculer</button>
       </div>
       <div class="err" id="err"></div>
 
       <div class="solution">
         <div class="readout">
-          <div class="k">Portée à afficher</div>
+          <div class="k" data-i18n="rangeToDial">Portée à afficher</div>
           <div class="v"><span id="dist">&ndash;&ndash;&ndash;&ndash;</span><span class="u"> m</span></div>
           <div class="sub" id="distPts">&nbsp;</div>
         </div>
         <div class="readout">
-          <div class="k">Azimut à composer</div>
+          <div class="k" data-i18n="azimuthToDial">Azimut à composer</div>
           <div class="v"><span id="az">&ndash;&ndash;&ndash;</span><span class="u">&deg;</span></div>
           <div class="sub" id="azMils">&nbsp;</div>
         </div>
@@ -106,45 +107,42 @@
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h2>R&eacute;glage sur impact observ&eacute;</h2>
+      <h2 data-i18n="adjustSection">R&eacute;glage sur impact observ&eacute;</h2>
       <div class="coords">
-        <div class="f-x"><label for="ix">Impact X</label><input id="ix" inputmode="decimal" placeholder="74.83"></div>
-        <div class="f-y"><label for="iy">Impact Y</label><input id="iy" inputmode="decimal" placeholder="74.78"></div>
-        <button id="adjust" class="f-end">Corriger</button>
-        <button id="resetAdjust" class="ghost f-end">Annuler</button>
+        <div class="f-x"><label for="ix" data-i18n="impactX">Impact X</label><input id="ix" inputmode="decimal" placeholder="74.83"></div>
+        <div class="f-y"><label for="iy" data-i18n="impactY">Impact Y</label><input id="iy" inputmode="decimal" placeholder="74.78"></div>
+        <button id="adjust" class="f-end" data-i18n="correctBtn">Corriger</button>
+        <button id="resetAdjust" class="ghost f-end" data-i18n="resetBtn">Annuler</button>
       </div>
-      <p class="hint">O&ugrave; l'obus est r&eacute;ellement tomb&eacute;, pour la cible s&eacute;lectionn&eacute;e.
-        La correction annule l'erreur syst&eacute;matique sans avoir &agrave; en conna&icirc;tre la cause.</p>
+      <p class="hint" data-i18n-html="adjustHint"></p>
       <div id="adjustOut"></div>
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h2>Mode inverse &mdash; v&eacute;rifier un tir</h2>
+      <h2 data-i18n="reverseSection">Mode inverse &mdash; v&eacute;rifier un tir</h2>
       <div class="coords">
-        <div><label for="pd">Distance (m)</label><input id="pd" inputmode="decimal" placeholder="1900"></div>
-        <div><label for="pa">Azimut (&deg;)</label><input id="pa" inputmode="decimal" placeholder="353"></div>
-        <button id="project">O&ugrave; &ccedil;a tombe ?</button>
+        <div><label for="pd" data-i18n="distanceM">Distance (m)</label><input id="pd" inputmode="decimal" placeholder="1900"></div>
+        <div><label for="pa" data-i18n="azimuthDeg">Azimut (&deg;)</label><input id="pa" inputmode="decimal" placeholder="353"></div>
+        <button id="project" data-i18n="whereBtn">O&ugrave; &ccedil;a tombe ?</button>
       </div>
-      <p class="hint">Entre ce que tu as r&eacute;ellement affich&eacute; sur la pi&egrave;ce : l'app te dit
-        quelle coordonn&eacute;e ce tir vise depuis la position batterie. Si &ccedil;a ne tombe pas sur ta
-        cible, c'est la position batterie qui est p&eacute;rim&eacute;e.</p>
+      <p class="hint" data-i18n-html="reverseHint"></p>
       <div id="projectOut"></div>
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h2>Cibles enregistr&eacute;es</h2>
+      <h2 data-i18n="savedSection">Cibles enregistr&eacute;es</h2>
       <table>
-        <thead><tr><th>Cible</th><th>Coord.</th><th>Dist.</th><th>Azimut</th><th></th></tr></thead>
+        <thead><tr><th data-i18n="thTarget">Cible</th><th data-i18n="thCoord">Coord.</th><th data-i18n="thRange">Dist.</th><th data-i18n="thAzimuth">Azimut</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
-      <div class="empty" id="noTargets">Aucune cible pour l'instant.</div>
-      <button class="ghost" id="clear" style="margin-top:12px">Tout effacer</button>
+      <div class="empty" id="noTargets" data-i18n="noTargets">Aucune cible pour l'instant.</div>
+      <button class="ghost" id="clear" style="margin-top:12px" data-i18n="clearAll">Tout effacer</button>
     </section>
   </div>
 
   <aside>
     <section class="panel">
-      <h2>Rose des vents</h2>
+      <h2 data-i18n="compassSection">Rose des vents</h2>
       <svg class="compass" id="compass" viewBox="0 0 240 240" width="240" height="240"></svg>
     </section>
   </aside>
@@ -157,14 +155,160 @@ const store = {
   save(d){ try { localStorage.setItem('artillerie', JSON.stringify(d)); } catch (e) {} }
 };
 
-let state = Object.assign({ gun:{x:'', y:''}, scale:100, targets:[], activeId:null }, store.load());
+// Langue par defaut : celle du navigateur au premier chargement, puis le
+// choix de l'utilisateur, qui est memorise comme le reste de l'etat.
+function defaultLang(){
+  try {
+    return String(navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  } catch (e) {
+    return 'fr';
+  }
+}
+
+let state = Object.assign({ gun:{x:'', y:''}, scale:100, targets:[], activeId:null,
+                            lang: defaultLang() }, store.load());
 let results = [];
 
-// --- Moteur de calcul (miroir de artillery.py, pour tourner sans serveur) ---
-const CARDINALS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-                   'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+// ---------------------------------------------------------------- i18n ----
+const I18N = {
+  fr: {
+    locale: 'fr-FR', other: 'EN', htmlLang: 'fr',
+    appTitle: 'Calcul artillerie',
+    subtitle: '1 pt = 100 m \u00b7 azimut 0 = nord, sens horaire',
+    batterySection: 'Position batterie',
+    metresPerPoint: 'M\u00e8tres / point',
+    inputOrder: 'Ordre de saisie',
+    orderXY: 'X puis Y', orderYX: 'Y puis X',
+    targetSection: 'Cible',
+    nameOptional: 'Nom (option)',
+    namePlaceholder: 'MG nord',
+    computeBtn: 'Calculer',
+    rangeToDial: 'Port\u00e9e \u00e0 afficher',
+    azimuthToDial: 'Azimut \u00e0 composer',
+    adjustSection: 'R\u00e9glage sur impact observ\u00e9',
+    impactX: 'Impact X', impactY: 'Impact Y',
+    correctBtn: 'Corriger', resetBtn: 'Annuler',
+    adjustHint: "O\u00f9 l'obus est r\u00e9ellement tomb\u00e9, pour la cible s\u00e9lectionn\u00e9e. " +
+      "La correction annule l'erreur syst\u00e9matique sans avoir \u00e0 en conna\u00eetre la cause.",
+    reverseSection: 'Mode inverse \u2014 v\u00e9rifier un tir',
+    distanceM: 'Distance (m)', azimuthDeg: 'Azimut (\u00b0)',
+    whereBtn: 'O\u00f9 \u00e7a tombe ?',
+    reverseHint: "Entre ce que tu as r\u00e9ellement affich\u00e9 sur la pi\u00e8ce : l'app te dit quelle " +
+      "coordonn\u00e9e ce tir vise depuis la position batterie. Si \u00e7a ne tombe pas sur ta cible, " +
+      "c'est la position batterie qui est p\u00e9rim\u00e9e.",
+    savedSection: 'Cibles enregistr\u00e9es',
+    thTarget: 'Cible', thCoord: 'Coord.', thRange: 'Dist.', thAzimuth: 'Azimut',
+    noTargets: "Aucune cible pour l'instant.",
+    clearAll: 'Tout effacer',
+    compassSection: 'Rose des vents',
+    deleteTitle: 'Supprimer',
+    cardinals: ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'],
+    compassPoints: ['N', 'E', 'S', 'O'],
+    pasteHint: ex => 'Conserv\u00e9e entre les sessions. Colle <code>x90.37, y44.35</code> dans ' +
+      "l'un ou l'autre champ : les \u00e9tiquettes x/y sont reconnues et l'ordre n'a pas " +
+      "d'importance. Sans \u00e9tiquette, <code>" + ex + "</code> suit l'ordre affich\u00e9.",
+    errBatteryFirst: "Renseigne d'abord la position de la batterie.",
+    errTargetInvalid: 'Coordonn\u00e9es de cible invalides.',
+    errAddTarget: "Ajoute d'abord une cible.",
+    errImpactInvalid: "Coordonn\u00e9es d'impact invalides.",
+    errBatteryMissing: 'Position batterie manquante.',
+    errRangeAzimuth: 'Distance et azimut requis.',
+    onGround: ' m au sol',
+    belowStep: ' \u00b7 correction sous le pas de r\u00e9glage',
+    ballistic: ' \u00b7 correction balistique ',
+    saturates: max => 'au-del\u00e0 de la port\u00e9e utile (~' + max + ' m) : la pi\u00e8ce sature',
+    exactAz: '\u00b0 exact \u00b7 ',
+    perDegree: m => "1\u00b0 d'\u00e9cart = " + m + ' m \u00e0 cette port\u00e9e',
+    newRange: 'Nouvelle distance', newAzimuth: 'Nouvel azimut',
+    offsetLine: (d, card, x, y) => '\u00c9cart observ\u00e9 : <strong>' + d + ' m</strong> \u2014 depuis ' +
+      "l'impact, la cible est au <strong>" + card + '</strong>. Point de vis\u00e9e corrig\u00e9 : ' +
+      '<code>' + x + ' / ' + y + '</code>.',
+    farWarning: "\u00c9cart de plus de 1,5 km : ce n'est probablement pas une d\u00e9rive mais une " +
+      'coordonn\u00e9e mal relev\u00e9e. Rev\u00e9rifie la cible avant de corriger.',
+    aimedPoint: 'Point vis\u00e9',
+    fromTarget: m => ' \u00b7 ' + m + ' m de la cible s\u00e9lectionn\u00e9e'
+  },
+  en: {
+    locale: 'en-GB', other: 'FR', htmlLang: 'en',
+    appTitle: 'Artillery Calculator',
+    subtitle: '1 pt = 100 m \u00b7 azimuth 0 = north, clockwise',
+    batterySection: 'Battery position',
+    metresPerPoint: 'Metres / point',
+    inputOrder: 'Input order',
+    orderXY: 'X then Y', orderYX: 'Y then X',
+    targetSection: 'Target',
+    nameOptional: 'Name (optional)',
+    namePlaceholder: 'MG north',
+    computeBtn: 'Compute',
+    rangeToDial: 'Range to dial',
+    azimuthToDial: 'Azimuth to dial',
+    adjustSection: 'Adjust from observed impact',
+    impactX: 'Impact X', impactY: 'Impact Y',
+    correctBtn: 'Correct', resetBtn: 'Reset',
+    adjustHint: 'Where the round actually landed, for the selected target. The correction ' +
+      'cancels the systematic error without needing to know its cause.',
+    reverseSection: 'Reverse mode \u2014 check a shot',
+    distanceM: 'Range (m)', azimuthDeg: 'Azimuth (\u00b0)',
+    whereBtn: 'Where does it land?',
+    reverseHint: 'Enter what you actually dialled on the gun: the app tells you which ' +
+      'coordinate that shot aims at from the battery position. If it does not land on your ' +
+      'target, the battery position is out of date.',
+    savedSection: 'Saved targets',
+    thTarget: 'Target', thCoord: 'Coord.', thRange: 'Range', thAzimuth: 'Azimuth',
+    noTargets: 'No targets yet.',
+    clearAll: 'Clear all',
+    compassSection: 'Compass rose',
+    deleteTitle: 'Delete',
+    cardinals: ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'],
+    compassPoints: ['N', 'E', 'S', 'W'],
+    pasteHint: ex => 'Kept between sessions. Paste <code>x90.37, y44.35</code> into either ' +
+      'field: the x/y labels are recognised and the order does not matter. Without labels, ' +
+      '<code>' + ex + '</code> follows the displayed order.',
+    errBatteryFirst: 'Set the battery position first.',
+    errTargetInvalid: 'Invalid target coordinates.',
+    errAddTarget: 'Add a target first.',
+    errImpactInvalid: 'Invalid impact coordinates.',
+    errBatteryMissing: 'Battery position missing.',
+    errRangeAzimuth: 'Range and azimuth required.',
+    onGround: ' m on the ground',
+    belowStep: ' \u00b7 correction below the dial step',
+    ballistic: ' \u00b7 ballistic correction ',
+    saturates: max => 'beyond useful range (~' + max + ' m): the gun saturates',
+    exactAz: '\u00b0 exact \u00b7 ',
+    perDegree: m => '1\u00b0 off = ' + m + ' m at this range',
+    newRange: 'New range', newAzimuth: 'New azimuth',
+    offsetLine: (d, card, x, y) => 'Observed offset: <strong>' + d + ' m</strong> \u2014 from the ' +
+      'impact, the target lies <strong>' + card + '</strong>. Corrected aim point: ' +
+      '<code>' + x + ' / ' + y + '</code>.',
+    farWarning: 'Offset over 1.5 km: this is probably not drift but a misread coordinate. ' +
+      'Double-check the target before correcting.',
+    aimedPoint: 'Aim point',
+    fromTarget: m => ' \u00b7 ' + m + ' m from the selected target'
+  }
+};
 
-function cardinal(az){ return CARDINALS[Math.round(((az % 360) + 360) % 360 / 22.5) % 16]; }
+function T(){ return I18N[state.lang === 'en' ? 'en' : 'fr']; }
+
+function applyLang(){
+  const d = T();
+  document.documentElement.lang = d.htmlLang;
+  document.title = d.appTitle;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = d[el.dataset.i18n];
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = d[el.dataset.i18nHtml];
+  });
+  $('tl').placeholder = d.namePlaceholder;
+  $('lang').textContent = d.other;
+  applyOrder();
+  render();
+}
+
+// --- Moteur de calcul (miroir de artillery.py, pour tourner sans serveur) ---
+function cardinalIndex(az){ return Math.round(((az % 360) + 360) % 360 / 22.5) % 16; }
 
 // X croit vers l'est, Y vers le nord. Azimut 0 = nord, sens horaire.
 function solve(gun, target, mpp){
@@ -179,7 +323,7 @@ function solve(gun, target, mpp){
     azimuth_mils: azimuth * 6400 / 360,
     d_east_m: dE,
     d_north_m: dN,
-    cardinal: cardinal(azimuth)
+    cardinal_idx: cardinalIndex(azimuth)
   };
 }
 
@@ -252,11 +396,8 @@ function applyOrder(){
   document.querySelectorAll('.f-y').forEach(el => { el.style.order = on ? 0 : 1; });
   document.querySelectorAll('.f-x').forEach(el => { el.style.order = on ? 1 : 0; });
   document.querySelectorAll('.f-end').forEach(el => { el.style.order = 2; });
-  $('order').textContent = on ? 'Y puis X' : 'X puis Y';
-  $('pasteHint').innerHTML = "Conservée entre les sessions. Colle <code>x90.37, y44.35</code> " +
-    "dans l'un ou l'autre champ : les étiquettes x/y sont reconnues et l'ordre n'a pas " +
-    "d'importance. Sans étiquette, <code>" + (on ? '60.2 100.4' : '100.4 60.2') +
-    "</code> suit l'ordre affiché.";
+  $('order').textContent = on ? T().orderYX : T().orderXY;
+  $('pasteHint').innerHTML = T().pasteHint(on ? '60.2 100.4' : '100.4 60.2');
 }
 $('order').addEventListener('click', () => {
   state.yFirst = !state.yFirst;
@@ -320,8 +461,8 @@ function focusFirstTargetField(){
 function addTarget(){
   const gx = num($('gx')), gy = num($('gy'));
   const tx = num($('tx')), ty = num($('ty'));
-  if (gx === null || gy === null) { fail("Renseigne d'abord la position de la batterie."); return; }
-  if (tx === null || ty === null) { fail('Coordonnées de cible invalides.'); return; }
+  if (gx === null || gy === null) { fail(T().errBatteryFirst); return; }
+  if (tx === null || ty === null) { fail(T().errTargetInvalid); return; }
   fail('');
   const t = { id: 't' + Date.now(), x: tx, y: ty, label: $('tl').value.trim() };
   state.targets.unshift(t);
@@ -347,7 +488,7 @@ $('clear').addEventListener('click', () => {
 });
 
 function fmt(n, d = 0){
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return Number(n).toLocaleString(T().locale, { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 function escapeHtml(s){
   return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
@@ -367,8 +508,9 @@ function render(){
       '<td>' + escapeHtml(r.label || '—') + '</td>' +
       '<td>' + fmt(t.x, 1) + ' / ' + fmt(t.y, 1) + '</td>' +
       '<td>' + fmt(r.distance_m) + ' m</td>' +
-      '<td>' + fmt(r.azimuth_deg, 1) + '° <span style="color:var(--dim)">' + r.cardinal + '</span></td>' +
-      '<td style="text-align:right"><button class="del" title="Supprimer">×</button></td>';
+      '<td>' + fmt(r.azimuth_deg, 1) + '° <span style="color:var(--dim)">' +
+        T().cardinals[r.cardinal_idx] + '</span></td>' +
+      '<td style="text-align:right"><button class="del" title="' + T().deleteTitle + '">×</button></td>';
     tr.addEventListener('click', e => {
       if (e.target.classList.contains('del')) {
         state.targets = state.targets.filter(x => x.id !== r.id);
@@ -388,18 +530,17 @@ function render(){
   if (act) {
     const d = dialable(act.distance_m, act.azimuth_deg);
     $('dist').textContent = fmt(d.range_dialed);
-    $('distPts').innerHTML = fmt(act.distance_m) + ' m au sol' +
+    $('distPts').innerHTML = fmt(act.distance_m) + T().onGround +
       (d.correction_below_step
-        ? ' · correction sous le pas de réglage'
-        : ' · correction balistique ' + (d.range_exact >= act.distance_m ? '+' : '') +
+        ? T().belowStep
+        : T().ballistic + (d.range_exact >= act.distance_m ? '+' : '') +
           fmt(d.range_exact - act.distance_m) + ' m') +
       (act.distance_m > EFFECTIVE_MAX_RANGE_M
-        ? '<br><span style="color:var(--hot)">au-delà de la portée utile (~' +
-          fmt(EFFECTIVE_MAX_RANGE_M) + ' m) : la pièce sature</span>'
+        ? '<br><span style="color:var(--hot)">' + T().saturates(fmt(EFFECTIVE_MAX_RANGE_M)) + '</span>'
         : '');
     $('az').textContent = fmt(d.azimuth_dialed);
-    $('azMils').innerHTML = fmt(act.azimuth_deg, 1) + '° exact · ' + act.cardinal +
-      "<br>1° d'écart = " + fmt(d.azimuth_step_m * 2) + " m à cette portée";
+    $('azMils').innerHTML = fmt(act.azimuth_deg, 1) + T().exactAz + T().cardinals[act.cardinal_idx] +
+      '<br>' + T().perDegree(fmt(d.azimuth_step_m * 2));
   } else {
     $('dist').textContent = '––––';
     $('distPts').innerHTML = '&nbsp;';
@@ -423,7 +564,7 @@ function drawCompass(act){
                '" x2="' + (c + R * Math.cos(rad)) + '" y2="' + (c + R * Math.sin(rad)) +
                '" stroke="' + (long ? '#5c6544' : '#3a4029') + '"/>');
   }
-  [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'O']].forEach(([a, txt]) => {
+  [0, 90, 180, 270].map((a, i) => [a, T().compassPoints[i]]).forEach(([a, txt]) => {
     const rad = (a - 90) * Math.PI / 180, rr = R - 26;
     parts.push('<text x="' + (c + rr * Math.cos(rad)) + '" y="' + (c + rr * Math.sin(rad) + 4) +
                '" fill="#8f9680" font-size="12" font-family="monospace" text-anchor="middle">' + txt + '</text>');
@@ -466,8 +607,8 @@ function runAdjust(){
   const ix = num($('ix')), iy = num($('iy'));
   const out = $('adjustOut');
 
-  if (!t) { out.innerHTML = '<div class="err">Ajoute d\'abord une cible.</div>'; return; }
-  if (ix === null || iy === null) { out.innerHTML = '<div class="err">Coordonnées d\'impact invalides.</div>'; return; }
+  if (!t) { out.innerHTML = '<div class="err">' + T().errAddTarget + '</div>'; return; }
+  if (ix === null || iy === null) { out.innerHTML = '<div class="err">' + T().errImpactInvalid + '</div>'; return; }
 
   const d = adjust(
     { x: num($('gx')), y: num($('gy')) },
@@ -479,21 +620,19 @@ function runAdjust(){
   const far = d.offset.distance_m > 1500;
   out.innerHTML =
     '<div class="solution">' +
-      '<div class="readout"><div class="k">Nouvelle distance</div>' +
+      '<div class="readout"><div class="k">' + T().newRange + '</div>' +
         '<div class="v">' + fmt(d.corrected.distance_m) + '<span class="u"> m</span></div>' +
         '<div class="sub">' + (d.corrected.distance_m > d.original.distance_m ? '+' : '') +
           fmt(d.corrected.distance_m - d.original.distance_m) + ' m</div></div>' +
-      '<div class="readout"><div class="k">Nouvel azimut</div>' +
+      '<div class="readout"><div class="k">' + T().newAzimuth + '</div>' +
         '<div class="v">' + fmt(d.corrected.azimuth_deg, 1) + '<span class="u">°</span></div>' +
         '<div class="sub">' + (d.corrected.azimuth_deg > d.original.azimuth_deg ? '+' : '') +
           fmt(d.corrected.azimuth_deg - d.original.azimuth_deg, 1) + '° · ' +
           fmt(d.corrected.azimuth_mils) + ' mils</div></div>' +
     '</div>' +
-    '<p class="hint">Écart observé : <strong>' + fmt(d.offset.distance_m) + ' m</strong> — depuis l\'impact, ' +
-      'la cible est au <strong>' + d.offset.cardinal + '</strong>. Point de visée corrigé : <code>' +
-      fmt(d.aim_point.x, 2) + ' / ' + fmt(d.aim_point.y, 2) + '</code>.</p>' +
-    (far ? '<div class="err">Écart de plus de 1,5 km : ce n\'est probablement pas une dérive ' +
-           'mais une coordonnée mal relevée. Revérifie la cible avant de corriger.</div>' : '');
+    '<p class="hint">' + T().offsetLine(fmt(d.offset.distance_m),
+        T().cardinals[d.offset.cardinal_idx], fmt(d.aim_point.x, 2), fmt(d.aim_point.y, 2)) + '</p>' +
+    (far ? '<div class="err">' + T().farWarning + '</div>' : '');
 }
 $('adjust').addEventListener('click', runAdjust);
 
@@ -502,8 +641,8 @@ function runProject(){
   const out = $('projectOut');
   const d = num($('pd')), a = num($('pa'));
   const gx = num($('gx')), gy = num($('gy'));
-  if (gx === null || gy === null) { out.innerHTML = '<div class="err">Position batterie manquante.</div>'; return; }
-  if (d === null || a === null) { out.innerHTML = '<div class="err">Distance et azimut requis.</div>'; return; }
+  if (gx === null || gy === null) { out.innerHTML = '<div class="err">' + T().errBatteryMissing + '</div>'; return; }
+  if (d === null || a === null) { out.innerHTML = '<div class="err">' + T().errRangeAzimuth + '</div>'; return; }
 
   const p = project({ x: gx, y: gy }, d, a, num($('scale')) || 100);
 
@@ -513,9 +652,9 @@ function runProject(){
   if (t) {
     const dx = (p.x - t.x), dy = (p.y - t.y);
     const scale = num($('scale')) || 100;
-    ecart = ' &middot; ' + fmt(Math.hypot(dx, dy) * scale) + ' m de la cible sélectionnée';
+    ecart = T().fromTarget(fmt(Math.hypot(dx, dy) * scale));
   }
-  out.innerHTML = '<div class="readout" style="margin-top:4px"><div class="k">Point vis&eacute;</div>' +
+  out.innerHTML = '<div class="readout" style="margin-top:4px"><div class="k">' + T().aimedPoint + '</div>' +
     '<div class="v" style="font-size:28px">x ' + fmt(p.x, 2) + '<span class="u"> / </span>y ' + fmt(p.y, 2) + '</div>' +
     '<div class="sub">' + fmt(p.distance_pts, 2) + ' pt' + ecart + '</div></div>';
 }
@@ -525,8 +664,14 @@ $('project').addEventListener('click', runProject);
 $('gx').value = (state.gun && state.gun.x) || '';
 $('gy').value = (state.gun && state.gun.y) || '';
 $('scale').value = state.scale || 100;
-applyOrder();
+$('lang').addEventListener('click', () => {
+  state.lang = state.lang === 'en' ? 'fr' : 'en';
+  persist();
+  applyLang();
+});
+
 recompute();
+applyLang();
 focusFirstTargetField();
 </script>
 </body>

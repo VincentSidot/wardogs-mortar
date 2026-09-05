@@ -50,6 +50,13 @@ piece : la page dit quelle coordonnee ce tir vise. C'est le test qui detecte
 une position batterie perimee -- sur un automoteur (SPH-2) elle change des que
 le vehicule bouge, et c'est la premiere cause d'ecart.
 
+## Langue
+
+Bouton **EN / FR** en haut a droite. Au premier chargement la page suit la
+langue du navigateur (`fr-*` -> francais, sinon anglais), ensuite elle retient
+le choix. La bascule traduit aussi les cardinaux (O <-> W, SSO <-> SSW) et le
+format des nombres (2 025 m <-> 2,025 m).
+
 ## Saisie
 
 Colle `x90.37, y44.35` dans n'importe lequel des deux champs : les etiquettes
