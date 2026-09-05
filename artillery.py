@@ -70,22 +70,35 @@ def parse_coord(text, y_first=False):
     return (b, a) if y_first else (a, b)
 
 
-def adjust(gun, target, impact, meters_per_point=METERS_PER_POINT):
-    """Reglage de tir : d'apres l'impact observe, corrige le point de visee.
+def aim_after(target, impacts):
+    """Point de visee apres une suite d'impacts observes.
 
-    Si l'obus est tombe en I alors qu'on visait T, on vise desormais
-    T' = T + (T - I), ce qui annule l'erreur systematique (echelle,
-    declinaison, derive) sans avoir a l'identifier.
+    Chaque impact deplace la visee de (cible - impact), et les corrections se
+    cumulent : le deuxieme reglage part de la visee deja corrigee, il ne
+    remplace pas le premier. Les impacts passes ici doivent tous provenir de
+    la meme piece -- deux pieces n'ont aucune raison d'avoir la meme derive.
     """
     tx, ty = target
-    ix, iy = impact
-    aim = (2 * tx - ix, 2 * ty - iy)
+    x, y = tx, ty
+    for ix, iy in impacts:
+        x += tx - ix
+        y += ty - iy
+    return (x, y)
+
+
+def adjust(gun, target, impacts, meters_per_point=METERS_PER_POINT):
+    """Solution corrigee d'apres les impacts deja observes."""
+    if impacts and not isinstance(impacts[0], (tuple, list)):
+        impacts = [impacts]          # tolere un impact unique
+    aim = aim_after(target, impacts)
+    last = impacts[-1] if impacts else target
 
     return {
-        "offset": solve(impact, target, meters_per_point),  # de l'impact vers la cible
+        "offset": solve(last, target, meters_per_point),   # du dernier impact vers la cible
         "aim_point": {"x": aim[0], "y": aim[1]},
         "corrected": solve(gun, aim, meters_per_point),
         "original": solve(gun, target, meters_per_point),
+        "shots": len(impacts),
     }
 
 

@@ -73,7 +73,8 @@ class Handler(BaseHTTPRequestHandler):
             scale = float(data.get("meters_per_point") or artillery.METERS_PER_POINT)
             if route == "/api/adjust":
                 target = (float(data["target"]["x"]), float(data["target"]["y"]))
-                impact = (float(data["impact"]["x"]), float(data["impact"]["y"]))
+                raw = data.get("impacts") or [data["impact"]]
+                impacts = [(float(i["x"]), float(i["y"])) for i in raw]
             elif route == "/api/project":
                 distance_m = float(data["distance_m"])
                 azimuth_deg = float(data["azimuth_deg"])
@@ -84,7 +85,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if route == "/api/adjust":
-            self._json(200, artillery.adjust(gun, target, impact, scale))
+            self._json(200, artillery.adjust(gun, target, impacts, scale))
             return
 
         if route == "/api/project":
